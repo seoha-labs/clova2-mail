@@ -90,10 +90,54 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.c2m-subject--editing {
+  padding: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.c2m-subject-edit {
+  width: 100%;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 8px 12px;
+  border: 2px solid #0d9488;
+  border-radius: 6px;
+  background: #f0fdfa;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  font-family: inherit;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.c2m-subject-edit:focus {
+  border-color: #0f766e;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
 .c2m-preview {
   font-size: 14px;
   line-height: 1.6;
   color: #374151;
+}
+
+.c2m-preview--editing {
+  border: 2px solid #0d9488;
+  border-radius: 6px;
+  padding: 12px;
+  background: #f0fdfa;
+  min-height: 200px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.c2m-preview--editing:focus {
+  border-color: #0f766e;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
 }
 
 .c2m-preview h1, .c2m-preview h2, .c2m-preview h3 {
@@ -152,12 +196,6 @@
 .c2m-btn:focus-visible {
   outline: 2px solid #0d9488;
   outline-offset: 2px;
-}
-
-.c2m-confirm-text {
-  font-size: 13px;
-  color: #6b7280;
-  align-self: center;
 }
 
 .c2m-loading {

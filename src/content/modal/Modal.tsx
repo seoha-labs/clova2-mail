@@ -21,7 +21,6 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [manualText, setManualText] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [showSendConfirm, setShowSendConfirm] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -274,20 +273,22 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                 {recipients.length === 0 && <span style={{ color: '#dc2626' }}>수신자 없음</span>}
               </div>
 
-              {isEditing ? (
-                <input
-                  className="c2m-subject-input"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="메일 제목"
-                  aria-label="메일 제목"
-                />
-              ) : (
-                <div className="c2m-subject">{subject}</div>
-              )}
+              <div className={`c2m-subject ${isEditing ? 'c2m-subject--editing' : ''}`}>
+                {isEditing ? (
+                  <input
+                    className="c2m-subject-edit"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="메일 제목"
+                    aria-label="메일 제목"
+                  />
+                ) : (
+                  subject
+                )}
+              </div>
 
               <div
-                className={`c2m-preview ${isEditing ? 'c2m-editable' : ''}`}
+                className={`c2m-preview ${isEditing ? 'c2m-preview--editing' : ''}`}
                 contentEditable={isEditing}
                 suppressContentEditableWarning={isEditing}
                 role={isEditing ? 'textbox' : undefined}
@@ -377,27 +378,9 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   >
                     수정
                   </button>
-                  {showSendConfirm ? (
-                    <>
-                      <span className="c2m-confirm-text">발송하시겠습니까?</span>
-                      <button
-                        className="c2m-btn c2m-btn-primary"
-                        onClick={() => { setShowSendConfirm(false); handleSend(); }}
-                      >
-                        확인
-                      </button>
-                      <button
-                        className="c2m-btn c2m-btn-secondary"
-                        onClick={() => setShowSendConfirm(false)}
-                      >
-                        아니오
-                      </button>
-                    </>
-                  ) : (
-                    <button className="c2m-btn c2m-btn-primary" onClick={() => setShowSendConfirm(true)}>
-                      이메일 발송
-                    </button>
-                  )}
+                  <button className="c2m-btn c2m-btn-primary" onClick={handleSend}>
+                    이메일 발송
+                  </button>
                 </>
               )}
             </>
