@@ -21,11 +21,63 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [manualText, setManualText] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
     getRecipients().then(setRecipients);
   }, []);
+
+  // Focus management: save previous focus and restore on close
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement;
+    // Focus the container on mount
+    containerRef.current?.focus();
+    return () => {
+      if (previousFocusRef.current instanceof HTMLElement) {
+        previousFocusRef.current.focus();
+      }
+    };
+  }, []);
+
+  // Escape key handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Focus trap
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
+  }, [state, isEditing]);
 
   const requestSummary = useCallback(
     (text: string) => {
@@ -120,10 +172,17 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
 
   return (
     <div className="c2m-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="c2m-container">
+      <div
+        ref={containerRef}
+        className="c2m-container"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="c2m-dialog-title"
+        tabIndex={-1}
+      >
         <div className="c2m-header">
-          <h2>clova2Mail</h2>
-          <button className="c2m-close" onClick={onClose}>
+          <h2 id="c2m-dialog-title">clova2Mail</h2>
+          <button className="c2m-close" onClick={onClose} aria-label="닫기">
             ✕
           </button>
         </div>
@@ -159,15 +218,22 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
           )}
 
           {state === 'LOADING' && (
-            <div className="c2m-loading">
-              <div className="c2m-spinner" />
+            <div className="c2m-loading" role="status" aria-live="polite">
+              <div className="c2m-spinner" aria-label="로딩 중" />
               <p>AI가 회의록을 요약하고 있습니다...</p>
               {progress && (
                 <div className="c2m-progress">
                   <p>
                     {progress.current}/{progress.total} 구간 처리 중
                   </p>
-                  <div className="c2m-progress-bar">
+                  <div
+                    className="c2m-progress-bar"
+                    role="progressbar"
+                    aria-valuenow={progress.current}
+                    aria-valuemin={0}
+                    aria-valuemax={progress.total}
+                    aria-label={`${progress.current}/${progress.total} 구간 처리 중`}
+                  >
                     <div
                       className="c2m-progress-fill"
                       style={{ width: `${(progress.current / progress.total) * 100}%` }}
@@ -189,6 +255,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                 ref={textareaRef}
                 className="c2m-textarea"
                 placeholder="회의 원문 텍스트를 여기에 붙여넣으세요..."
+                aria-label="회의 원문 텍스트"
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
               />
@@ -213,6 +280,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="메일 제목"
+                  aria-label="메일 제목"
                 />
               ) : (
                 <div className="c2m-subject">{subject}</div>
@@ -222,6 +290,9 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                 className={`c2m-preview ${isEditing ? 'c2m-editable' : ''}`}
                 contentEditable={isEditing}
                 suppressContentEditableWarning={isEditing}
+                role={isEditing ? 'textbox' : undefined}
+                aria-multiline={isEditing ? true : undefined}
+                aria-label={isEditing ? '이메일 본문 편집' : undefined}
                 onBlur={(e) => {
                   if (isEditing) {
                     setHtmlBody(sanitizeHtml(e.currentTarget.innerHTML));
@@ -233,8 +304,8 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
           )}
 
           {state === 'SENDING' && (
-            <div className="c2m-loading">
-              <div className="c2m-spinner" />
+            <div className="c2m-loading" role="status" aria-live="polite">
+              <div className="c2m-spinner" aria-label="발송 중" />
               <p>이메일을 발송하고 있습니다...</p>
             </div>
           )}
@@ -247,7 +318,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
           )}
 
           {state === 'ERROR' && (
-            <div className="c2m-error">
+            <div className="c2m-error" role="alert">
               <p style={{ fontSize: '20px' }}>⚠</p>
               <p>{error}</p>
             </div>
@@ -306,9 +377,27 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   >
                     수정
                   </button>
-                  <button className="c2m-btn c2m-btn-primary" onClick={handleSend}>
-                    이메일 발송
-                  </button>
+                  {showSendConfirm ? (
+                    <>
+                      <span className="c2m-confirm-text">발송하시겠습니까?</span>
+                      <button
+                        className="c2m-btn c2m-btn-primary"
+                        onClick={() => { setShowSendConfirm(false); handleSend(); }}
+                      >
+                        확인
+                      </button>
+                      <button
+                        className="c2m-btn c2m-btn-secondary"
+                        onClick={() => setShowSendConfirm(false)}
+                      >
+                        아니오
+                      </button>
+                    </>
+                  ) : (
+                    <button className="c2m-btn c2m-btn-primary" onClick={() => setShowSendConfirm(true)}>
+                      이메일 발송
+                    </button>
+                  )}
                 </>
               )}
             </>

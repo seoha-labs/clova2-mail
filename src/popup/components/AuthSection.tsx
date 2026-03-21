@@ -41,9 +41,10 @@ export function AuthSection() {
       </p>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-600">API Key</label>
+        <label htmlFor="openai-api-key" className="text-xs font-medium text-gray-600">API Key</label>
         <div className="flex gap-2">
           <input
+            id="openai-api-key"
             type={showKey ? 'text' : 'password'}
             value={apiKey ?? ''}
             onChange={(e) => handleKeyChange(e.target.value)}
@@ -64,9 +65,11 @@ export function AuthSection() {
           >
             검증
           </button>
-          {keyStatus === 'checking' && <span className="text-[10px] text-gray-500">확인 중...</span>}
-          {keyStatus === 'valid' && <span className="text-[10px] text-green-600">✓ 유효한 키</span>}
-          {keyStatus === 'invalid' && <span className="text-[10px] text-red-600">✗ 유효하지 않거나 잔액이 부족합니다</span>}
+          <span aria-live="polite">
+            {keyStatus === 'checking' && <span className="text-[10px] text-gray-500">확인 중...</span>}
+            {keyStatus === 'valid' && <span className="text-[10px] text-green-600">✓ 유효한 키</span>}
+            {keyStatus === 'invalid' && <span className="text-[10px] text-red-600">✗ 유효하지 않거나 잔액이 부족합니다</span>}
+          </span>
         </div>
       </div>
     </div>
