@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ModalState, Recipient, ProgressInfo } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
-import { renderSafeHtml, injectEmailStyles } from '../sanitizer';
+import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
 import { getRecipients } from '../../shared/storage';
 
 interface ModalProps {
@@ -224,7 +224,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                 suppressContentEditableWarning={isEditing}
                 onBlur={(e) => {
                   if (isEditing) {
-                    setHtmlBody(e.currentTarget.innerHTML);
+                    setHtmlBody(sanitizeHtml(e.currentTarget.innerHTML));
                   }
                 }}
                 dangerouslySetInnerHTML={{ __html: htmlBody }}
