@@ -102,8 +102,6 @@ async function fetchScriptFile(workspaceId: string, noteId: string): Promise<str
   const deviceId = capturedHeaders['note-device-id'] || ls.deviceId;
   const sessionId = capturedHeaders['note-session-id'] || ls.sessionId;
 
-  console.log('[clova2Mail] 사용할 헤더 값:', { deviceId, sessionId, capturedHeaders });
-
   const response = await fetch(url, {
     method: 'GET',
     credentials: 'include',

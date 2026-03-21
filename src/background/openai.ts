@@ -79,17 +79,17 @@ function formatSummaryToMarkdown(summary: SummaryJson, template: EmailTemplate, 
   const attendeesText = summary.attendees.join(', ');
 
   const subject = template.subject
-    .replace('{title}', title)
-    .replace('{date}', date);
+    .replaceAll('{title}', title)
+    .replaceAll('{date}', date);
 
   const body = template.body
-    .replace('{summary}', summary.summary)
-    .replace('{decisions}', decisionsText)
-    .replace('{action_items}', actionItemsText)
-    .replace('{attendees}', attendeesText)
-    .replace('{keywords}', summary.keywords.join(', '))
-    .replace('{title}', title)
-    .replace('{date}', date);
+    .replaceAll('{summary}', summary.summary)
+    .replaceAll('{decisions}', decisionsText)
+    .replaceAll('{action_items}', actionItemsText)
+    .replaceAll('{attendees}', attendeesText)
+    .replaceAll('{keywords}', summary.keywords.join(', '))
+    .replaceAll('{title}', title)
+    .replaceAll('{date}', date);
 
   return {
     subject,

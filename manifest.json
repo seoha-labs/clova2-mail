@@ -1,20 +1,18 @@
 {
   "manifest_version": 3,
   "name": "clova2Mail",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ClovaNote 회의록을 AI로 요약하여 이메일 발송",
   "permissions": [
     "storage",
     "identity",
-    "activeTab",
-    "tabs"
+    "activeTab"
   ],
   "host_permissions": [
     "https://clovanote.naver.com/*",
     "https://api-v2.clovanote.naver.com/*",
     "https://api.openai.com/*",
-    "https://www.googleapis.com/*",
-    "http://127.0.0.1/*"
+    "https://www.googleapis.com/*"
   ],
   "background": {
     "service_worker": "src/background/index.ts",

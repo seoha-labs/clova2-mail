@@ -37,6 +37,11 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
           payload: { transcript: text, meetingTitle, attendees: [...attendees] },
         },
         (response: SummarizeResponse) => {
+          if (chrome.runtime.lastError) {
+            setError(chrome.runtime.lastError.message ?? '백그라운드 서비스와 통신에 실패했습니다.');
+            setState('ERROR');
+            return;
+          }
           if (response?.payload?.success) {
             const safeHtml = renderSafeHtml(response.payload.htmlBody);
             setSubject(response.payload.subject);
@@ -89,6 +94,11 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         },
       },
       (response: SendEmailResponse) => {
+        if (chrome.runtime.lastError) {
+          setError(chrome.runtime.lastError.message ?? '백그라운드 서비스와 통신에 실패했습니다.');
+          setState('ERROR');
+          return;
+        }
         if (response?.payload?.success) {
           setState('SENT');
           setTimeout(onClose, 2000);

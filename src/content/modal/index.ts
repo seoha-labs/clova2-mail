@@ -1,9 +1,11 @@
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { createElement } from 'react';
 import { Modal } from './Modal';
 import modalCss from './modal.css?inline';
 
 const MODAL_HOST_ID = 'clova2mail-modal-host';
+
+let currentRoot: Root | null = null;
 
 export function showModal(
   transcript: string | null,
@@ -26,9 +28,11 @@ export function showModal(
   document.body.appendChild(host);
 
   const root = createRoot(mountPoint);
+  currentRoot = root;
 
   const handleClose = () => {
     root.unmount();
+    currentRoot = null;
     host.remove();
   };
 
@@ -43,5 +47,9 @@ export function showModal(
 }
 
 export function hideModal(): void {
+  if (currentRoot) {
+    currentRoot.unmount();
+    currentRoot = null;
+  }
   document.getElementById(MODAL_HOST_ID)?.remove();
 }

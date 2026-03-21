@@ -143,10 +143,12 @@ export async function sendViaGmail(
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: errorData.error?.message ?? `HTTP ${response.status}`,
+        error: (errorData as Record<string, unknown>)?.error
+          ? ((errorData as Record<string, { message?: string }>).error?.message ?? `HTTP ${response.status}`)
+          : `HTTP ${response.status}`,
       };
     }
 

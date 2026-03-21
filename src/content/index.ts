@@ -37,6 +37,8 @@ async function handleClova2MailClick(): Promise<void> {
   }
 }
 
+let transcriptObserver: MutationObserver | null = null;
+
 function onTranscriptReady(): void {
   if (!isButtonInjected()) {
     injectButton(handleClova2MailClick);
@@ -45,17 +47,22 @@ function onTranscriptReady(): void {
 
 // URL 변경 감지 (SPA navigation)
 let lastUrl = location.href;
+let urlDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const urlObserver = new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
     removeButton();
-    // 새 페이지 로드 대기 후 재주입
-    setTimeout(onTranscriptReady, 1000);
+
+    // 이전 transcript observer 정리 후 새로 시작
+    transcriptObserver?.disconnect();
+
+    if (urlDebounceTimer) clearTimeout(urlDebounceTimer);
+    urlDebounceTimer = setTimeout(() => {
+      transcriptObserver = watchForTranscript(onTranscriptReady);
+    }, 1000);
   }
 });
 urlObserver.observe(document.body, { childList: true, subtree: true });
 
 // MutationObserver로 transcript 페이지 감지
-watchForTranscript(onTranscriptReady);
-
-console.log('[clova2Mail] Content script loaded');
+transcriptObserver = watchForTranscript(onTranscriptReady);
