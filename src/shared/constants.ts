@@ -1,7 +1,7 @@
 import type { EmailTemplate } from './types';
 
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-export const OPENAI_MODEL = 'gpt-4o';
+export const OPENAI_MODEL = 'gpt-4o-mini';
 export const GMAIL_SEND_URL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
 export const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
