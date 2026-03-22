@@ -16,7 +16,7 @@ export function showModal(
 
   const host = document.createElement('div');
   host.id = MODAL_HOST_ID;
-  const shadow = host.attachShadow({ mode: 'closed' });
+  const shadow = host.attachShadow({ mode: 'closed', delegatesFocus: true });
 
   const styleEl = document.createElement('style');
   styleEl.textContent = modalCss;

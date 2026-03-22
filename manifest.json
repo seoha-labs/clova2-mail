@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "clova2Mail",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ClovaNote 회의록을 AI로 요약하여 이메일 발송",
   "permissions": [
     "storage",

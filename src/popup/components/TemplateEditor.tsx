@@ -46,8 +46,9 @@ export function TemplateEditor() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-600">제목</label>
+        <label htmlFor="template-subject" className="text-xs font-medium text-gray-600">제목</label>
         <input
+          id="template-subject"
           type="text"
           value={current.subject}
           onChange={(e) => handleSubjectChange(e.target.value)}
@@ -56,8 +57,9 @@ export function TemplateEditor() {
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-600">본문 (Markdown)</label>
+        <label htmlFor="template-body" className="text-xs font-medium text-gray-600">본문 (Markdown)</label>
         <textarea
+          id="template-body"
           value={current.body}
           onChange={(e) => handleBodyChange(e.target.value)}
           rows={10}

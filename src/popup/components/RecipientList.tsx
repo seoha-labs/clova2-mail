@@ -67,6 +67,7 @@ export function RecipientList() {
               <button
                 onClick={() => removeRecipient(r.id)}
                 className="text-gray-400 hover:text-red-500 text-sm px-1"
+                aria-label={`${r.name} 삭제`}
               >
                 ✕
               </button>
@@ -82,6 +83,7 @@ export function RecipientList() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="이름 (선택)"
+            aria-label="수신자 이름"
             className="w-24 px-2 py-1.5 text-xs border border-gray-300 rounded-md"
           />
           <input
@@ -93,6 +95,7 @@ export function RecipientList() {
             }}
             onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
             placeholder="email@example.com"
+            aria-label="수신자 이메일"
             className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded-md"
           />
           <button
