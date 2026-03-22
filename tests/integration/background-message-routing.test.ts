@@ -168,6 +168,22 @@ describe('Background message routing', () => {
       expect(payload.messageId).toBe('msg_456');
     });
 
+    it('sends raw transcript email without AI summarization', async () => {
+      mockTokenSuccess('tok_raw');
+      mockFetch.mockResolvedValueOnce(gmailOkResponse('msg_raw'));
+
+      const rawHtmlBody = '<h2>회의 정보</h2><p>회의 원문 내용입니다.</p>';
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: { to: ['test@example.com'], subject: '[회의록 원문] Sprint - 2026-03-22', htmlBody: rawHtmlBody },
+      })) as Record<string, unknown>;
+
+      expect(result).toHaveProperty('type', 'EMAIL_SENT');
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(true);
+      expect(payload.messageId).toBe('msg_raw');
+    });
+
     it('returns error when Gmail auth fails', async () => {
       mockTokenFailure('User not signed in');
 

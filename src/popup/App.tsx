@@ -21,7 +21,7 @@ export function App() {
       <div className="w-[380px] min-h-[500px] bg-white flex flex-col">
         <div className="bg-teal-600 px-4 py-3">
           <h1 className="text-white text-lg font-semibold">clova2Mail</h1>
-          <p className="text-teal-200 text-xs">ClovaNote 회의록 AI 요약 + 이메일 발송</p>
+          <p className="text-teal-200 text-xs">ClovaNote 회의록 요약/원문 이메일 발송</p>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-6">
           <div className="text-center space-y-2">
@@ -51,7 +51,7 @@ export function App() {
     <div className="w-[380px] min-h-[500px] bg-white text-gray-900">
       <div className="bg-teal-600 px-4 py-3">
         <h1 className="text-white text-lg font-semibold">clova2Mail</h1>
-        <p className="text-teal-200 text-xs">ClovaNote 회의록 AI 요약 + 이메일 발송</p>
+        <p className="text-teal-200 text-xs">ClovaNote 회의록 요약/원문 이메일 발송</p>
         {/* 연결된 Gmail 이메일 표시 */}
         {gmail.email && (
           <p className="text-teal-300 text-xs mt-1 opacity-80">

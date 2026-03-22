@@ -35,9 +35,11 @@ export function AuthSection() {
 
   return (
     <div className="p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-gray-700">OpenAI API 설정</h2>
+      <h2 className="text-sm font-semibold text-gray-700">
+        OpenAI API 설정 <span className="text-xs font-normal text-gray-400">(선택)</span>
+      </h2>
       <p className="text-[11px] text-gray-500 mb-2">
-        회의록 요약을 위해 OpenAI API Key가 필요합니다. 무료 크레딧 또는 결제 등록된 계정의 Key를 사용하세요.
+        AI 요약 기능을 사용하려면 OpenAI API Key를 입력하세요. 원문 발송만 사용하는 경우 입력하지 않아도 됩니다.
       </p>
 
       <div className="space-y-2">
