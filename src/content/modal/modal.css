@@ -179,6 +179,16 @@
   background: #f3f4f6;
 }
 
+.c2m-btn-outline {
+  background: #fff;
+  border-color: #0d9488;
+  color: #0d9488;
+}
+
+.c2m-btn-outline:hover {
+  background: #f0fdfa;
+}
+
 .c2m-btn-primary {
   background: #0d9488;
   color: #fff;

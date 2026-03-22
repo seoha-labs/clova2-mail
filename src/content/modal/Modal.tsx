@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ModalState, Recipient, ProgressInfo } from '../../shared/types';
+import type { ModalState, Recipient, ProgressInfo, SendMode } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
 import { getRecipients } from '../../shared/storage';
+import { formatRawTranscriptEmail } from './formatRawEmail';
 
 interface ModalProps {
   readonly transcript: string | null;
@@ -21,6 +22,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [manualText, setManualText] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const sendModeRef = useRef<SendMode>('summarize');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -78,8 +80,18 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
     return () => document.removeEventListener('keydown', handleTab);
   }, [state, isEditing]);
 
+  const handleRawSend = useCallback(() => {
+    if (!transcript) return;
+    sendModeRef.current = 'raw';
+    const result = formatRawTranscriptEmail(transcript, meetingTitle, attendees);
+    setSubject(result.subject);
+    setHtmlBody(result.htmlBody);
+    setState('PREVIEW');
+  }, [transcript, meetingTitle, attendees]);
+
   const requestSummary = useCallback(
     (text: string) => {
+      sendModeRef.current = 'summarize';
       setState('LOADING');
       setError('');
       chrome.runtime.sendMessage(
@@ -117,14 +129,6 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       setTimeout(() => setCopied(false), 2000);
     });
   }, [transcript, meetingTitle, attendees]);
-
-  useEffect(() => {
-    // 자동 시작을 방지. RAW_DATA_PREVIEW 에서 명시적으로 버튼을 눌러야 시작.
-    if (transcript && state === 'LOADING' && !htmlBody) {
-      // 메뉴얼하게 텍스트만 전송할 때 사용하는 기존 플로우나 예외 방어용으로 남겨둠
-      // requestSummary(transcript);
-    }
-  }, [transcript, state, htmlBody]);
 
   const handleSend = useCallback(() => {
     if (recipients.length === 0) {
@@ -194,8 +198,8 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
               </div>
               <div className="c2m-recipients">
                 <strong>참석자: </strong>
-                {attendees.map((a, i) => (
-                  <span key={i} className="c2m-recipient-tag">{a}</span>
+                {attendees.map((a) => (
+                  <span key={a} className="c2m-recipient-tag">{a}</span>
                 ))}
               </div>
 
@@ -332,13 +336,16 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
               <button className="c2m-btn c2m-btn-secondary" onClick={onClose}>
                 취소
               </button>
+              <button className="c2m-btn c2m-btn-outline" onClick={handleRawSend}>
+                원문 그대로 발송
+              </button>
               <button
                 className="c2m-btn c2m-btn-primary"
                 onClick={() => {
                   if (transcript) requestSummary(transcript);
                 }}
               >
-                템플릿에 요약
+                AI 요약 후 발송
               </button>
             </>
           )}
@@ -395,7 +402,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                 className="c2m-btn c2m-btn-primary"
                 onClick={() => {
                   if (transcript) {
-                    requestSummary(transcript);
+                    sendModeRef.current === 'raw' ? handleRawSend() : requestSummary(transcript);
                   } else {
                     setState('EXTRACT_FAILED');
                   }

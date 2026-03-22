@@ -57,3 +57,5 @@ export interface ProgressInfo {
   readonly current: number;
   readonly total: number;
 }
+
+export type SendMode = 'summarize' | 'raw';
