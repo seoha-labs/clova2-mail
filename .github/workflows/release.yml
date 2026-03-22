@@ -1,0 +1,184 @@
+name: Auto Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# contents: write is required for creating git tags and GitHub Releases.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract version from branch name
+        id: version
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          VERSION="${BRANCH#release/}"
+
+          # Validate strict semver format (x.y.z, no leading zeros)
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Invalid version format: '$VERSION'. Expected semver (x.y.z)."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Extracted version: $VERSION (tag: v$VERSION)"
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check for duplicate tag
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git tag -l "$TAG" | grep -q "^${TAG}$"; then
+            echo "::error::Tag '$TAG' already exists. Please use a new version number."
+            exit 1
+          fi
+          echo "Tag '$TAG' is available."
+
+      - name: Determine previous tag
+        id: prev_tag
+        shell: bash
+        run: |
+          HEAD_SHA=$(git rev-parse HEAD)
+
+          # Find the most recent semver tag by version sorting
+          PREV_TAG=$(git tag --sort=-version:refname | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found. This is the first release."
+            ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            echo "range=${ROOT_COMMIT}..${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+            echo "first_release=true" >> "$GITHUB_OUTPUT"
+          else
+            # Validate previous tag matches semver format
+            if [[ ! "$PREV_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "::warning::Previous tag '$PREV_TAG' does not match expected semver format. Treating as first release."
+              ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD)
+              echo "range=${ROOT_COMMIT}..${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+              echo "first_release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Previous tag: $PREV_TAG"
+              echo "range=${PREV_TAG}..${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+              echo "first_release=false" >> "$GITHUB_OUTPUT"
+              echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Generate changelog
+        shell: bash
+        env:
+          RANGE: ${{ steps.prev_tag.outputs.range }}
+          FIRST_RELEASE: ${{ steps.prev_tag.outputs.first_release }}
+        run: |
+          git log "$RANGE" --pretty=format:"- %s (%h)" --no-merges > "$RUNNER_TEMP/changelog.txt"
+
+          if [ ! -s "$RUNNER_TEMP/changelog.txt" ]; then
+            if [ "$FIRST_RELEASE" = "true" ]; then
+              echo "- Initial release." > "$RUNNER_TEMP/changelog.txt"
+            else
+              echo "- No individual commits found." > "$RUNNER_TEMP/changelog.txt"
+            fi
+          fi
+
+      - name: Generate contributors list
+        shell: bash
+        env:
+          RANGE: ${{ steps.prev_tag.outputs.range }}
+        run: |
+          : > "$RUNNER_TEMP/contributors.txt"
+
+          while IFS='|' read -r name email; do
+            # Resolve GitHub username from noreply emails only
+            if [[ "$email" == *"@users.noreply.github.com"* ]]; then
+              username=$(echo "$email" | sed 's/@users.noreply.github.com//' | sed 's/^[0-9]*+//')
+              echo "- @$username" >> "$RUNNER_TEMP/contributors.txt"
+            else
+              # Sanitize contributor name to prevent Markdown injection
+              clean_name=$(printf '%s' "$name" | tr -d '[]()<>`\r\n')
+              echo "- $clean_name" >> "$RUNNER_TEMP/contributors.txt"
+            fi
+          done < <(git log "$RANGE" --pretty=format:"%an|%ae" --no-merges | sort -t'|' -k2,2 -u)
+
+          if [ ! -s "$RUNNER_TEMP/contributors.txt" ]; then
+            echo "- No contributors found." > "$RUNNER_TEMP/contributors.txt"
+          fi
+
+      - name: Build release notes
+        shell: bash
+        env:
+          FIRST_RELEASE: ${{ steps.prev_tag.outputs.first_release }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.prev_tag }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "## What's Changed"
+            echo ""
+            cat "$RUNNER_TEMP/changelog.txt"
+            echo ""
+            echo ""
+            echo "## Contributors"
+            echo ""
+            cat "$RUNNER_TEMP/contributors.txt"
+          } > "$RUNNER_TEMP/release_notes.md"
+
+          if [ "$FIRST_RELEASE" != "true" ] && [ -n "$PREV_TAG" ]; then
+            printf '\n---\n\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+              "$REPO" "$PREV_TAG" "$TAG" >> "$RUNNER_TEMP/release_notes.md"
+          fi
+
+      - name: Create git tag
+        id: create_tag
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            --title "v${VERSION}" \
+            --notes-file "$RUNNER_TEMP/release_notes.md" \
+            --target main
+
+      - name: Rollback tag on release failure
+        if: failure() && steps.create_tag.outcome == 'success'
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "::warning::Release creation failed. Rolling back git tag '$TAG'. Check for orphaned draft releases manually."
+          if ! git push origin --delete "$TAG"; then
+            echo "::error::Failed to rollback tag '$TAG'. Manual cleanup required: git push origin --delete '$TAG'"
+          fi
