@@ -21,6 +21,10 @@ export function useGmailAuth(): {
     chrome.runtime.sendMessage(
       { type: 'GET_GMAIL_STATUS' },
       (response: GetGmailStatusResponse) => {
+        if (chrome.runtime.lastError) {
+          setState({ connected: false, loading: false });
+          return;
+        }
         setState({
           connected: response?.payload?.connected ?? false,
           email: response?.payload?.email,
@@ -35,6 +39,10 @@ export function useGmailAuth(): {
     chrome.runtime.sendMessage(
       { type: 'CONNECT_GMAIL' },
       (response: ConnectGmailResponse) => {
+        if (chrome.runtime.lastError) {
+          setState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
         if (response?.payload?.success) {
           setState({
             connected: true,
@@ -50,6 +58,9 @@ export function useGmailAuth(): {
 
   const disconnect = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'DISCONNECT_GMAIL' }, () => {
+      if (chrome.runtime.lastError) {
+        // ignore - already disconnected
+      }
       setState({ connected: false, loading: false });
     });
   }, []);
