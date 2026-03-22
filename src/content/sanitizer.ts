@@ -26,9 +26,13 @@ export function stripHtmlFromTemplate(template: string): string {
   return template.replace(/<[^>]*>/g, '');
 }
 
+export function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG);
+}
+
 export function renderSafeHtml(markdown: string): string {
   const rawHtml = marked(markdown, { async: false }) as string;
-  return DOMPurify.sanitize(rawHtml, SANITIZE_CONFIG);
+  return sanitizeHtml(rawHtml);
 }
 
 export function injectEmailStyles(html: string): string {
