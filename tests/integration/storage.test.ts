@@ -20,11 +20,13 @@ import {
   setOpenAIKey,
   getRecipients,
   setRecipients,
+  getRecipientGroups,
+  setRecipientGroups,
   getEmailTemplate,
   setEmailTemplate,
 } from '../../src/shared/storage';
 import { DEFAULT_TEMPLATE } from '../../src/shared/constants';
-import type { Recipient, EmailTemplate } from '../../src/shared/types';
+import type { Recipient, RecipientGroup, EmailTemplate } from '../../src/shared/types';
 
 describe('Chrome storage wrapper operations', () => {
   beforeEach(() => {
@@ -102,6 +104,34 @@ describe('Chrome storage wrapper operations', () => {
       delete storageStore['emailTemplate'];
       const result = await getEmailTemplate();
       expect(result).toEqual(DEFAULT_TEMPLATE);
+    });
+  });
+
+  describe('Recipient groups', () => {
+    it('returns empty array when no groups set', async () => {
+      const groups = await getRecipientGroups();
+      expect(groups).toEqual([]);
+    });
+
+    it('stores and retrieves groups', async () => {
+      const testGroups: readonly RecipientGroup[] = [
+        { id: 'g1', name: '개발팀', recipientIds: ['1', '2'] },
+        { id: 'g2', name: '기획팀', recipientIds: ['3'] },
+      ];
+      await setRecipientGroups(testGroups);
+      const result = await getRecipientGroups();
+      expect(result).toEqual(testGroups);
+    });
+
+    it('overwrites existing groups', async () => {
+      await setRecipientGroups([{ id: 'g1', name: 'Old', recipientIds: ['1'] }]);
+      const newGroups: readonly RecipientGroup[] = [
+        { id: 'g2', name: 'New', recipientIds: ['2', '3'] },
+      ];
+      await setRecipientGroups(newGroups);
+      const result = await getRecipientGroups();
+      expect(result).toEqual(newGroups);
+      expect(result).toHaveLength(1);
     });
   });
 

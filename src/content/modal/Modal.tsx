@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ModalState, Recipient, ProgressInfo, SendMode } from '../../shared/types';
+import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
-import { getRecipients } from '../../shared/storage';
+import { getRecipients, getRecipientGroups } from '../../shared/storage';
 import { formatRawTranscriptEmail } from './formatRawEmail';
+import { RecipientSelector } from './RecipientSelector';
 
 interface ModalProps {
   readonly transcript: string | null;
@@ -15,6 +16,9 @@ interface ModalProps {
 export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalProps) {
   const [state, setState] = useState<ModalState>(transcript ? 'RAW_DATA_PREVIEW' : 'EXTRACT_FAILED');
   const [recipients, setRecipients] = useState<readonly Recipient[]>([]);
+  const [groups, setGroups] = useState<readonly RecipientGroup[]>([]);
+  const [selectedEmails, setSelectedEmails] = useState<readonly string[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlBody, setHtmlBody] = useState('');
   const [error, setError] = useState('');
@@ -28,7 +32,11 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const previousFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
-    getRecipients().then(setRecipients);
+    Promise.all([getRecipients(), getRecipientGroups()]).then(([r, g]) => {
+      setRecipients(r);
+      setGroups(g);
+      setDataLoaded(true);
+    });
   }, []);
 
   // Focus management: save previous focus and restore on close
@@ -130,12 +138,16 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
     });
   }, [transcript, meetingTitle, attendees]);
 
+  const handleSelectionChange = useCallback((emails: readonly string[]) => {
+    setSelectedEmails(emails);
+  }, []);
+
   const handleSend = useCallback(() => {
-    if (recipients.length === 0) {
-      setError('수신자가 설정되지 않았습니다. 확장 프로그램 설정에서 수신자를 추가하세요.');
-      setState('ERROR');
+    if (selectedEmails.length === 0) {
+      setError('수신자를 선택하세요.');
       return;
     }
+    setError('');
 
     setState('SENDING');
     const styledHtml = injectEmailStyles(htmlBody);
@@ -143,7 +155,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       {
         type: 'SEND_EMAIL',
         payload: {
-          to: recipients.map((r) => r.email),
+          to: [...selectedEmails],
           subject,
           htmlBody: styledHtml,
         },
@@ -163,7 +175,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         }
       },
     );
-  }, [recipients, subject, htmlBody, onClose]);
+  }, [selectedEmails, subject, htmlBody, onClose]);
 
   const handleManualSubmit = useCallback(() => {
     if (manualText.trim().length < 50) {
@@ -267,15 +279,16 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
 
           {state === 'PREVIEW' && (
             <>
-              <div className="c2m-recipients">
-                <strong>To: </strong>
-                {recipients.map((r) => (
-                  <span key={r.id} className="c2m-recipient-tag">
-                    {r.name || r.email}
-                  </span>
-                ))}
-                {recipients.length === 0 && <span style={{ color: '#dc2626' }}>수신자 없음</span>}
-              </div>
+              {dataLoaded && (
+                <RecipientSelector
+                  recipients={recipients}
+                  groups={groups}
+                  onSelectionChange={handleSelectionChange}
+                />
+              )}
+              {state === 'PREVIEW' && error && (
+                <p className="c2m-inline-error">{error}</p>
+              )}
 
               <div className={`c2m-subject ${isEditing ? 'c2m-subject--editing' : ''}`}>
                 {isEditing ? (
