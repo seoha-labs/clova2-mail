@@ -48,7 +48,7 @@ async function callOpenAI(tokenOrKey: string, transcript: string, template: Emai
         { role: 'user', content: userMessage },
       ],
       temperature: 0.3,
-      max_tokens: 4096,
+      max_tokens: 2048,
       response_format: { type: 'json_object' },
     }),
   });
@@ -137,15 +137,18 @@ export async function summarizeTranscript(
     return formatSummaryToMarkdown(summary, template, meetingTitle);
   }
 
-  // Chunk-Summarize-Merge (순차 처리)
+  // Chunk-Summarize-Merge (병렬 처리)
   const chunks = splitByParagraphs(transcript, CHUNK_SIZE);
-  const partialSummaries: SummaryJson[] = [];
+  let completed = 0;
 
-  for (const [i, chunk] of chunks.entries()) {
-    const result = await callOpenAI(apiKey, chunk, template);
-    partialSummaries.push(result);
-    onProgress?.({ current: i + 1, total: chunks.length });
-  }
+  const partialSummaries = await Promise.all(
+    chunks.map(async (chunk) => {
+      const result = await callOpenAI(apiKey, chunk, template);
+      completed += 1;
+      onProgress?.({ current: completed, total: chunks.length });
+      return result;
+    }),
+  );
 
   const merged = await mergeSummaries(apiKey, partialSummaries, template);
   return formatSummaryToMarkdown(merged, template, meetingTitle);
