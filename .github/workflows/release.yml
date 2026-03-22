@@ -105,20 +105,32 @@ jobs:
         shell: bash
         env:
           RANGE: ${{ steps.prev_tag.outputs.range }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           : > "$RUNNER_TEMP/contributors.txt"
+          declare -A seen_users
 
-          while IFS='|' read -r name email; do
-            # Resolve GitHub username from noreply emails only
-            if [[ "$email" == *"@users.noreply.github.com"* ]]; then
-              username=$(echo "$email" | sed 's/@users.noreply.github.com//' | sed 's/^[0-9]*+//')
-              echo "- @$username" >> "$RUNNER_TEMP/contributors.txt"
-            else
-              # Sanitize contributor name to prevent Markdown injection
-              clean_name=$(printf '%s' "$name" | tr -d '[]()<>`\r\n')
-              echo "- $clean_name" >> "$RUNNER_TEMP/contributors.txt"
+          # Use GitHub API to resolve commit SHAs to GitHub usernames
+          # This handles multiple emails from the same person correctly
+          while read -r sha; do
+            login=$(gh api "repos/${REPO}/commits/${sha}" --jq '.author.login // empty' 2>/dev/null || true)
+            if [ -n "$login" ] && [ -z "${seen_users[$login]+x}" ]; then
+              seen_users[$login]=1
+              echo "- @$login" >> "$RUNNER_TEMP/contributors.txt"
             fi
-          done < <(git log "$RANGE" --pretty=format:"%an|%ae" --no-merges | sort -t'|' -k2,2 -u)
+          done < <(git log "$RANGE" --pretty=format:"%H" --no-merges)
+
+          # Fallback: if no GitHub users resolved, use git author names
+          if [ ! -s "$RUNNER_TEMP/contributors.txt" ]; then
+            while IFS= read -r name; do
+              clean_name=$(printf '%s' "$name" | tr -d '[]()<>`\r\n')
+              if [ -n "$clean_name" ] && [ -z "${seen_users[$clean_name]+x}" ]; then
+                seen_users[$clean_name]=1
+                echo "- $clean_name" >> "$RUNNER_TEMP/contributors.txt"
+              fi
+            done < <(git log "$RANGE" --pretty=format:"%an" --no-merges | sort -u)
+          fi
 
           if [ ! -s "$RUNNER_TEMP/contributors.txt" ]; then
             echo "- No contributors found." > "$RUNNER_TEMP/contributors.txt"
