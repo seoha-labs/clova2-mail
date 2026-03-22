@@ -12,6 +12,7 @@ export interface EmailTemplate {
 export interface StorageSchema {
   readonly openaiApiKey: string;
   readonly recipients: readonly Recipient[];
+  readonly recipientGroups: readonly RecipientGroup[];
   readonly emailTemplate: EmailTemplate;
 }
 
@@ -56,6 +57,12 @@ export type ModalState =
 export interface ProgressInfo {
   readonly current: number;
   readonly total: number;
+}
+
+export interface RecipientGroup {
+  readonly id: string;
+  readonly name: string;
+  readonly recipientIds: readonly string[];
 }
 
 export type SendMode = 'summarize' | 'raw';

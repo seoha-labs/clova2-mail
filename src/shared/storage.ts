@@ -1,4 +1,4 @@
-import type { StorageSchema, Recipient, EmailTemplate } from './types';
+import type { StorageSchema, Recipient, RecipientGroup, EmailTemplate } from './types';
 import { DEFAULT_TEMPLATE } from './constants';
 
 type StorageKey = keyof StorageSchema;
@@ -26,6 +26,14 @@ export async function getRecipients(): Promise<readonly Recipient[]> {
 
 export async function setRecipients(recipients: readonly Recipient[]): Promise<void> {
   await set('recipients', recipients);
+}
+
+export async function getRecipientGroups(): Promise<readonly RecipientGroup[]> {
+  return (await get('recipientGroups')) ?? [];
+}
+
+export async function setRecipientGroups(groups: readonly RecipientGroup[]): Promise<void> {
+  await set('recipientGroups', groups);
 }
 
 export async function getEmailTemplate(): Promise<EmailTemplate> {
