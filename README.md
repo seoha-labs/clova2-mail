@@ -27,7 +27,7 @@ To run this project locally or install it for personal use, you need to set up y
 1. Clone the repository:
    ```bash
    git clone https://github.com/seoha-labs/clova2-mail.git
-   cd clova2Mail
+   cd clova2-mail
    ```
 2. Install dependencies:
    ```bash
