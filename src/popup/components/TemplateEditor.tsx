@@ -75,9 +75,10 @@ export function TemplateEditor() {
         <div className="grid grid-cols-2 gap-1 text-xs text-gray-600">
           <span><code className="bg-gray-200 px-1 rounded">{'{title}'}</code> 회의 제목</span>
           <span><code className="bg-gray-200 px-1 rounded">{'{date}'}</code> 날짜</span>
-          <span><code className="bg-gray-200 px-1 rounded">{'{summary}'}</code> 요약</span>
+          <span><code className="bg-gray-200 px-1 rounded">{'{summary_bullets}'}</code> 회의 요약</span>
           <span><code className="bg-gray-200 px-1 rounded">{'{decisions}'}</code> 결정사항</span>
-          <span><code className="bg-gray-200 px-1 rounded">{'{action_items}'}</code> Action Items</span>
+          <span><code className="bg-gray-200 px-1 rounded">{'{action_items}'}</code> 실행 과제</span>
+          <span><code className="bg-gray-200 px-1 rounded">{'{discussions}'}</code> 논의/보류 사항</span>
           <span><code className="bg-gray-200 px-1 rounded">{'{attendees}'}</code> 참석자</span>
         </div>
       </div>

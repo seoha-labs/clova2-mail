@@ -32,8 +32,30 @@ export function splitByParagraphs(text: string, maxTokens: number): string[] {
   return chunks;
 }
 
+const RESERVED_VARIABLES = new Set([
+  'title', 'date', 'summary_bullets', 'decisions',
+  'action_items', 'discussions', 'attendees',
+]);
+
+function extractCustomVariables(template: EmailTemplate): string[] {
+  const allText = `${template.subject}\n${template.body}`;
+  const matches = allText.matchAll(/\{(\w+)\}/g);
+  const custom: string[] = [];
+  for (const m of matches) {
+    if (!RESERVED_VARIABLES.has(m[1]) && !custom.includes(m[1])) {
+      custom.push(m[1]);
+    }
+  }
+  return custom;
+}
+
 async function callOpenAI(tokenOrKey: string, transcript: string, template: EmailTemplate): Promise<SummaryJson> {
-  const userMessage = `## 이메일 템플릿\n제목: ${template.subject}\n\n${template.body}\n\n## 회의 원문\n${transcript}`;
+  const customVars = extractCustomVariables(template);
+  const customVarsInstruction = customVars.length > 0
+    ? `\n\n## 유추가 필요한 템플릿 변수\n아래 변수들의 값을 회의 원문에서 유추하여 inferred_variables에 반드시 포함하세요.\n변수 목록: ${customVars.map((v) => `{${v}}`).join(', ')}`
+    : '';
+
+  const userMessage = `## 이메일 템플릿\n제목: ${template.subject}\n\n${template.body}${customVarsInstruction}\n\n## 회의 원문\n${transcript}`;
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -69,30 +91,50 @@ async function callOpenAI(tokenOrKey: string, transcript: string, template: Emai
   return JSON.parse(content) as SummaryJson;
 }
 
-function formatSummaryToMarkdown(summary: SummaryJson, template: EmailTemplate, title: string): SummaryResult {
+function formatSummaryToMarkdown(
+  summary: SummaryJson,
+  template: EmailTemplate,
+  title: string,
+  attendees: readonly string[],
+): SummaryResult {
   const date = new Date().toISOString().split('T')[0];
 
-  const decisionsText = summary.decisions.map((d, i) => `${i + 1}. ${d}`).join('\n');
+  const summaryBulletsText = summary.summary_bullets.map((b) => `- ${b}`).join('\n');
+  const decisionsText = summary.decisions.map((d) => `- ${d}`).join('\n');
   const actionItemsText = summary.action_items
-    .map((item) => `- @${item.assignee}: ${item.task} (${item.deadline})`)
+    .map((item) => `- @${item.assignee}: ${item.task} (기한: ${item.deadline})`)
     .join('\n');
-  const attendeesText = summary.attendees.join(', ');
+  const discussionsText = summary.discussions.map((d) => `- ${d}`).join('\n');
+  const attendeesText = attendees.join(', ');
 
   const subject = template.subject
     .replaceAll('{title}', title)
     .replaceAll('{date}', date);
 
-  const body = template.body
-    .replaceAll('{summary}', summary.summary)
+  let body = template.body
+    .replaceAll('{summary_bullets}', summaryBulletsText)
     .replaceAll('{decisions}', decisionsText)
     .replaceAll('{action_items}', actionItemsText)
+    .replaceAll('{discussions}', discussionsText)
     .replaceAll('{attendees}', attendeesText)
-    .replaceAll('{keywords}', summary.keywords.join(', '))
     .replaceAll('{title}', title)
     .replaceAll('{date}', date);
 
+  if (summary.inferred_variables) {
+    for (const [key, value] of Object.entries(summary.inferred_variables)) {
+      body = body.replaceAll(`{${key}}`, value);
+    }
+  }
+
+  let filledSubject = subject;
+  if (summary.inferred_variables) {
+    for (const [key, value] of Object.entries(summary.inferred_variables)) {
+      filledSubject = filledSubject.replaceAll(`{${key}}`, value);
+    }
+  }
+
   return {
-    subject,
+    subject: filledSubject,
     htmlBody: body,
     plainBody: body,
   };
@@ -103,9 +145,9 @@ async function mergeSummaries(
   partials: readonly SummaryJson[],
   template: EmailTemplate,
 ): Promise<SummaryJson> {
-  const mergePrompt = `아래는 긴 회의록을 구간별로 요약한 결과들입니다.
-이들을 하나의 통합 요약으로 합성해 주세요. 동일한 JSON 스키마를 사용하세요.
-중복된 결정사항이나 Action Item은 병합하고, 전체 요약은 새로 작성하세요.
+  const mergePrompt = `아래는 긴 회의록을 구간별로 정리한 결과들입니다.
+이들을 하나의 통합 정리본으로 합성해 주세요. 동일한 JSON 스키마를 사용하세요.
+중복된 결정사항이나 실행 과제는 병합하고, 회의 간단 요약과 논의 사항은 전체 흐름에 맞게 새로 작성하세요.
 
 ${partials.map((p, i) => `### 구간 ${i + 1}\n${JSON.stringify(p, null, 2)}`).join('\n\n')}`;
 
@@ -115,6 +157,7 @@ ${partials.map((p, i) => `### 구간 ${i + 1}\n${JSON.stringify(p, null, 2)}`).j
 export async function summarizeTranscript(
   transcript: string,
   meetingTitle: string,
+  attendees: readonly string[] = [],
   onProgress?: (progress: ProgressInfo) => void,
 ): Promise<SummaryResult> {
   const apiKey = await getOpenAIKey();
@@ -134,7 +177,7 @@ export async function summarizeTranscript(
 
   if (tokenCount <= MAX_TOKENS_SINGLE) {
     const summary = await callOpenAI(apiKey, transcript, template);
-    return formatSummaryToMarkdown(summary, template, meetingTitle);
+    return formatSummaryToMarkdown(summary, template, meetingTitle, attendees);
   }
 
   // Chunk-Summarize-Merge (병렬 처리)
@@ -151,6 +194,6 @@ export async function summarizeTranscript(
   );
 
   const merged = await mergeSummaries(apiKey, partialSummaries, template);
-  return formatSummaryToMarkdown(merged, template, meetingTitle);
+  return formatSummaryToMarkdown(merged, template, meetingTitle, attendees);
 }
 

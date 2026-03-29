@@ -25,15 +25,15 @@ export interface ExtractedData {
 }
 
 export interface SummaryJson {
-  readonly summary: string;
+  readonly summary_bullets: readonly string[];
   readonly decisions: readonly string[];
   readonly action_items: readonly {
     readonly task: string;
     readonly assignee: string;
     readonly deadline: string;
   }[];
-  readonly attendees: readonly string[];
-  readonly keywords: readonly string[];
+  readonly discussions: readonly string[];
+  readonly inferred_variables?: Readonly<Record<string, string>>;
 }
 
 export interface SummaryResult {
