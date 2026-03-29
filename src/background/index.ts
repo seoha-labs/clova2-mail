@@ -30,6 +30,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
         const result = await summarizeTranscript(
           message.payload.transcript,
           message.payload.meetingTitle,
+          message.payload.attendees ?? [],
         );
         return {
           type: 'SUMMARIZE_RESULT',
