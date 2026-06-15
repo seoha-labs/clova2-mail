@@ -1,3 +1,5 @@
+import type { SentEmail, SendMode } from './types';
+
 /** Per-entry cap on bodyHtml: 256 KB of UTF-8 bytes. */
 export const MAX_BODY_BYTES = 256 * 1024;
 
@@ -34,4 +36,39 @@ export function truncateBody(bodyHtml: string): TruncateResult {
     head = head.slice(0, -1);
   }
   return { bodyHtml: head + TRUNCATION_MARKER, truncated: true };
+}
+
+export interface MakeSentEmailInput {
+  readonly id: string;
+  readonly sentAt: number;
+  readonly to: readonly string[];
+  readonly cc?: readonly string[];
+  readonly bcc?: readonly string[];
+  readonly subject: string;
+  readonly bodyHtml: string;
+  readonly mode: SendMode;
+  readonly success: boolean;
+  readonly error?: string;
+}
+
+/**
+ * Builds an immutable SentEmail. cc/bcc default to [] when absent (Epic A may
+ * not be present). Determinism: id + sentAt are injected by the caller, never
+ * generated here, so tests pass fixed values.
+ */
+export function makeSentEmail(input: MakeSentEmailInput): SentEmail {
+  const { bodyHtml, truncated } = truncateBody(input.bodyHtml);
+  const base: SentEmail = {
+    id: input.id,
+    sentAt: input.sentAt,
+    to: [...input.to],
+    cc: input.cc ? [...input.cc] : [],
+    bcc: input.bcc ? [...input.bcc] : [],
+    subject: input.subject,
+    bodyHtml,
+    mode: input.mode,
+    success: input.success,
+    truncated,
+  };
+  return input.error === undefined ? base : { ...base, error: input.error };
 }
