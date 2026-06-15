@@ -3,7 +3,7 @@ import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode, Ema
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
 import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId } from '../../shared/storage';
-import { formatRawTranscriptEmail } from './formatRawEmail';
+import { buildRawPreview } from './rawPreviewModel';
 import { RecipientSelector } from './RecipientSelector';
 
 interface ModalProps {
@@ -99,10 +99,10 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
 
   const handleRawSend = useCallback(() => {
     if (!transcript) return;
-    sendModeRef.current = 'raw';
-    const result = formatRawTranscriptEmail(transcript, meetingTitle, attendees);
-    setSubject(result.subject);
-    setHtmlBody(result.htmlBody);
+    const preview = buildRawPreview(transcript, meetingTitle, attendees);
+    sendModeRef.current = preview.mode;
+    setSubject(preview.subject);
+    setHtmlBody(preview.htmlBody);
     setState('PREVIEW');
   }, [transcript, meetingTitle, attendees]);
 
