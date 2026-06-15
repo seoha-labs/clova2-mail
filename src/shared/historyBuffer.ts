@@ -105,3 +105,11 @@ export function appendToBuffer(
   }
   return next;
 }
+
+/** Returns a NEW history array with the entry matching `id` removed. */
+export function removeFromBuffer(
+  history: readonly SentEmail[],
+  id: string,
+): readonly SentEmail[] {
+  return history.filter((e) => e.id !== id);
+}

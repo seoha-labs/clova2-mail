@@ -149,3 +149,20 @@ describe('appendToBuffer', () => {
     expect(history[0].id).toBe('1');
   });
 });
+
+import { removeFromBuffer } from '../../src/shared/historyBuffer';
+
+describe('removeFromBuffer', () => {
+  it('removes the entry with the given id without mutating input', () => {
+    const history = [makeEntry('1'), makeEntry('2'), makeEntry('3')];
+    const next = removeFromBuffer(history, '2');
+    expect(next.map((e) => e.id)).toEqual(['1', '3']);
+    expect(history).toHaveLength(3); // input untouched
+  });
+
+  it('returns an equivalent array when the id is absent', () => {
+    const history = [makeEntry('1')];
+    const next = removeFromBuffer(history, 'nope');
+    expect(next.map((e) => e.id)).toEqual(['1']);
+  });
+});
