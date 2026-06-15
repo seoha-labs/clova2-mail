@@ -79,4 +79,16 @@ describe('formatRawTranscriptEmail', () => {
     expect(typeof result.subject).toBe('string');
     expect(typeof result.htmlBody).toBe('string');
   });
+
+  it('strips inline event handlers and javascript: URLs from htmlBody (preview safety contract)', () => {
+    const malicious =
+      'before <a href="javascript:alert(1)">x</a> <div onclick="steal()">y</div> after';
+    const result = formatRawTranscriptEmail(malicious, 'Meeting', ['Alice']);
+
+    expect(result.htmlBody).not.toContain('javascript:');
+    expect(result.htmlBody).not.toContain('onclick');
+    // Benign surrounding text survives.
+    expect(result.htmlBody).toContain('before');
+    expect(result.htmlBody).toContain('after');
+  });
 });
