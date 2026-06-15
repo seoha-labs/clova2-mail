@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode, EmailTemplate } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
-import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId } from '../../shared/storage';
+import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId, getPendingResend, clearPendingResend } from '../../shared/storage';
 import { buildRawPreview } from './rawPreviewModel';
 import { RecipientSelector } from './RecipientSelector';
 
@@ -46,6 +46,23 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       setSelectedTemplateId(t.some((x) => x.id === activeId) ? activeId : (t[0]?.id ?? ''));
       setDataLoaded(true);
     });
+  }, []);
+
+  // Re-send hand-off: if the popup staged a payload, load it into editable PREVIEW.
+  useEffect(() => {
+    let cancelled = false;
+    getPendingResend().then((pending) => {
+      if (cancelled || !pending) return;
+      sendModeRef.current = 'summarize';
+      setSubject(pending.subject);
+      setHtmlBody(pending.bodyHtml);
+      setSelectedEmails([...pending.to, ...pending.cc, ...pending.bcc]);
+      setState('PREVIEW');
+      clearPendingResend();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Focus management: save previous focus and restore on close
