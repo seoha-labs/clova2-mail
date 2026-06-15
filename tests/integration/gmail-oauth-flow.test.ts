@@ -196,6 +196,28 @@ describe('Gmail OAuth flow', () => {
       expect(chromeMock.identity.removeCachedAuthToken).toHaveBeenCalledWith({ token: 'tok_old' });
     });
 
+    it('revokes the grant at the Google revoke endpoint', async () => {
+      mockTokenSuccess('tok_old');
+      mockFetch.mockResolvedValueOnce(new Response('', { status: 200 }));
+
+      await disconnectGmail();
+
+      const revokeCall = mockFetch.mock.calls.find((c) =>
+        String(c[0]).includes('oauth2.googleapis.com/revoke'),
+      );
+      expect(revokeCall).toBeDefined();
+      expect(String(revokeCall![0])).toContain('token=tok_old');
+    });
+
+    it('still clears the local cache when the revoke request fails', async () => {
+      mockTokenSuccess('tok_old');
+      mockFetch.mockRejectedValueOnce(new TypeError('network'));
+
+      await disconnectGmail();
+
+      expect(chromeMock.identity.removeCachedAuthToken).toHaveBeenCalledWith({ token: 'tok_old' });
+    });
+
     it('does not throw when already disconnected', async () => {
       mockTokenFailure('No token');
       await expect(disconnectGmail()).resolves.toBeUndefined();
