@@ -7,6 +7,7 @@ export interface ExtractAndSummarizeRequest {
     readonly transcript: string;
     readonly meetingTitle: string;
     readonly attendees?: readonly string[];
+    readonly templateId?: string;
   };
 }
 
