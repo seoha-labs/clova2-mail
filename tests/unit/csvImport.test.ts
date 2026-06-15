@@ -32,3 +32,51 @@ describe('parseCsvRecipients — happy path', () => {
     expect(result.added[0]).toMatchObject({ name: 'Alice', email: 'alice@test.com' });
   });
 });
+
+describe('parseCsvRecipients — formatting variations', () => {
+  it('trims surrounding whitespace on fields', () => {
+    const csv = 'name,email\n  Alice  ,  alice@test.com  ';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added[0]).toMatchObject({ name: 'Alice', email: 'alice@test.com' });
+  });
+
+  it('handles quoted fields with embedded commas', () => {
+    const csv = 'name,email\n"Lee, Alice",alice@test.com';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.skipped).toEqual([]);
+    expect(result.added[0]).toMatchObject({ name: 'Lee, Alice', email: 'alice@test.com' });
+  });
+
+  it('handles escaped double quotes inside a quoted field', () => {
+    const csv = 'name,email\n"Al ""The Boss"" Smith",al@test.com';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added[0]).toMatchObject({ name: 'Al "The Boss" Smith', email: 'al@test.com' });
+  });
+
+  it('falls back to the email local-part when name is missing', () => {
+    const csv = 'name,email\n,alice@test.com';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added[0]).toMatchObject({ name: 'alice', email: 'alice@test.com' });
+  });
+
+  it('handles an email-only CSV (no name column)', () => {
+    const csv = 'email\nalice@test.com\nbob@test.com';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added).toHaveLength(2);
+    expect(result.added[0]).toMatchObject({ name: 'alice', email: 'alice@test.com' });
+  });
+
+  it('parses CRLF line endings', () => {
+    const csv = 'name,email\r\nAlice,alice@test.com\r\nBob,bob@test.com\r\n';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added).toHaveLength(2);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('ignores a trailing newline and interior blank lines', () => {
+    const csv = 'name,email\nAlice,alice@test.com\n\nBob,bob@test.com\n';
+    const result = parseCsvRecipients(csv, []);
+    expect(result.added).toHaveLength(2);
+    expect(result.skipped).toEqual([]);
+  });
+});
