@@ -35,10 +35,19 @@ import {
   appendSendHistory,
   deleteHistoryEntry,
   clearSendHistory,
+  getPendingResend,
+  setPendingResend,
+  clearPendingResend,
 } from '../../src/shared/storage';
 import { MAX_HISTORY_ENTRIES } from '../../src/shared/historyBuffer';
 import { DEFAULT_TEMPLATE } from '../../src/shared/constants';
-import type { Recipient, RecipientGroup, EmailTemplate, SentEmail } from '../../src/shared/types';
+import type {
+  Recipient,
+  RecipientGroup,
+  EmailTemplate,
+  SentEmail,
+  PendingResend,
+} from '../../src/shared/types';
 
 describe('Chrome storage wrapper operations', () => {
   beforeEach(() => {
@@ -304,6 +313,37 @@ describe('Chrome storage wrapper operations', () => {
       });
       await clearSendHistory();
       expect(await getSendHistory()).toEqual([]);
+    });
+  });
+
+  describe('Pending re-send hand-off', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      Object.keys(storageStore).forEach((k) => delete storageStore[k]);
+    });
+
+    it('returns undefined when nothing is pending', async () => {
+      expect(await getPendingResend()).toBeUndefined();
+    });
+
+    it('stores and retrieves a pending re-send payload', async () => {
+      const payload: PendingResend = {
+        to: ['a@b.com'],
+        cc: [],
+        bcc: [],
+        subject: '재발송 제목',
+        bodyHtml: '<p>본문</p>',
+      };
+      await setPendingResend(payload);
+      expect(await getPendingResend()).toEqual(payload);
+    });
+
+    it('clears the pending re-send payload', async () => {
+      await setPendingResend({
+        to: ['a@b.com'], cc: [], bcc: [], subject: 'S', bodyHtml: '<p>x</p>',
+      });
+      await clearPendingResend();
+      expect(await getPendingResend()).toBeUndefined();
     });
   });
 

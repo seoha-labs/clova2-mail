@@ -1,4 +1,11 @@
-import type { StorageSchema, Recipient, RecipientGroup, EmailTemplate, SentEmail } from './types';
+import type {
+  StorageSchema,
+  Recipient,
+  RecipientGroup,
+  EmailTemplate,
+  SentEmail,
+  PendingResend,
+} from './types';
 import { DEFAULT_TEMPLATE, OPENAI_MODEL, AVAILABLE_MODELS } from './constants';
 import { makeSentEmail, appendToBuffer, removeFromBuffer } from './historyBuffer';
 import type { MakeSentEmailInput } from './historyBuffer';
@@ -143,4 +150,16 @@ export async function deleteHistoryEntry(id: string): Promise<void> {
 
 export async function clearSendHistory(): Promise<void> {
   await set('sendHistory', []);
+}
+
+export async function getPendingResend(): Promise<PendingResend | undefined> {
+  return (await get('pendingResend')) ?? undefined;
+}
+
+export async function setPendingResend(payload: PendingResend): Promise<void> {
+  await set('pendingResend', payload);
+}
+
+export async function clearPendingResend(): Promise<void> {
+  await chrome.storage.local.remove('pendingResend');
 }
