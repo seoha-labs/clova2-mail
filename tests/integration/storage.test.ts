@@ -11,6 +11,10 @@ vi.stubGlobal('chrome', {
         Object.assign(storageStore, obj);
         return Promise.resolve();
       }),
+      remove: vi.fn((key: string) => {
+        delete storageStore[key];
+        return Promise.resolve();
+      }),
     },
   },
 });
@@ -22,8 +26,11 @@ import {
   setRecipients,
   getRecipientGroups,
   setRecipientGroups,
-  getEmailTemplate,
-  setEmailTemplate,
+  getEmailTemplates,
+  setEmailTemplates,
+  getActiveTemplateId,
+  setActiveTemplateId,
+  getActiveTemplate,
 } from '../../src/shared/storage';
 import { DEFAULT_TEMPLATE } from '../../src/shared/constants';
 import type { Recipient, RecipientGroup, EmailTemplate } from '../../src/shared/types';
@@ -82,28 +89,102 @@ describe('Chrome storage wrapper operations', () => {
     });
   });
 
-  describe('Email template', () => {
-    it('returns DEFAULT_TEMPLATE when not set', async () => {
-      const template = await getEmailTemplate();
-      expect(template).toEqual(DEFAULT_TEMPLATE);
+  describe('Email templates (array)', () => {
+    it('seeds [DEFAULT_TEMPLATE] when nothing is set', async () => {
+      const templates = await getEmailTemplates();
+      expect(templates).toEqual([DEFAULT_TEMPLATE]);
     });
 
-    it('stores and retrieves custom template', async () => {
-      const custom: EmailTemplate = {
-        subject: 'Custom: {title}',
-        body: 'Body: {summary}',
-      };
-      await setEmailTemplate(custom);
-      const result = await getEmailTemplate();
+    it('defaults activeTemplateId to DEFAULT_TEMPLATE.id when nothing is set', async () => {
+      const id = await getActiveTemplateId();
+      expect(id).toBe(DEFAULT_TEMPLATE.id);
+    });
+
+    it('stores and retrieves a custom template array', async () => {
+      const custom: readonly EmailTemplate[] = [
+        { id: 'a', name: '영업', subject: 'S {title}', body: 'B {summary_bullets}' },
+        { id: 'b', name: '내부', subject: 'S2', body: 'B2' },
+      ];
+      await setEmailTemplates(custom);
+      const result = await getEmailTemplates();
       expect(result).toEqual(custom);
     });
 
-    it('reverts to default after clearing', async () => {
-      await setEmailTemplate({ subject: 'Custom', body: 'Body' });
-      // Simulate clearing by deleting the key
-      delete storageStore['emailTemplate'];
-      const result = await getEmailTemplate();
-      expect(result).toEqual(DEFAULT_TEMPLATE);
+    it('stores and retrieves activeTemplateId', async () => {
+      await setActiveTemplateId('b');
+      const id = await getActiveTemplateId();
+      expect(id).toBe('b');
+    });
+
+    it('getActiveTemplate returns the template matching activeTemplateId', async () => {
+      const custom: readonly EmailTemplate[] = [
+        { id: 'a', name: '영업', subject: 'Sa', body: 'Ba' },
+        { id: 'b', name: '내부', subject: 'Sb', body: 'Bb' },
+      ];
+      await setEmailTemplates(custom);
+      await setActiveTemplateId('b');
+      const active = await getActiveTemplate();
+      expect(active.id).toBe('b');
+    });
+
+    it('getActiveTemplate falls back to the first template when activeTemplateId is missing', async () => {
+      const custom: readonly EmailTemplate[] = [
+        { id: 'a', name: '영업', subject: 'Sa', body: 'Ba' },
+        { id: 'b', name: '내부', subject: 'Sb', body: 'Bb' },
+      ];
+      await setEmailTemplates(custom);
+      await setActiveTemplateId('does-not-exist');
+      const active = await getActiveTemplate();
+      expect(active.id).toBe('a');
+    });
+  });
+
+  describe('Legacy emailTemplate migration', () => {
+    it('migrates a legacy single emailTemplate into the array and sets active', async () => {
+      // Simulate pre-v1.6 storage shape (no id/name on the legacy object).
+      storageStore['emailTemplate'] = { subject: '[옛] {title}', body: '옛 본문' };
+
+      const templates = await getEmailTemplates();
+      expect(templates).toHaveLength(1);
+      expect(templates[0].name).toBe('기본');
+      expect(templates[0].subject).toBe('[옛] {title}');
+      expect(templates[0].body).toBe('옛 본문');
+      expect(typeof templates[0].id).toBe('string');
+      expect(templates[0].id.length).toBeGreaterThan(0);
+
+      const activeId = await getActiveTemplateId();
+      expect(activeId).toBe(templates[0].id);
+    });
+
+    it('persists the migration so a second read returns the same id (idempotent)', async () => {
+      storageStore['emailTemplate'] = { subject: 'leg', body: 'legbody' };
+
+      const first = await getEmailTemplates();
+      const firstId = first[0].id;
+      const firstActive = await getActiveTemplateId();
+
+      const second = await getEmailTemplates();
+      const secondActive = await getActiveTemplateId();
+
+      expect(second).toEqual(first);
+      expect(second[0].id).toBe(firstId);
+      expect(secondActive).toBe(firstActive);
+    });
+
+    it('removes the legacy emailTemplate key after migration', async () => {
+      storageStore['emailTemplate'] = { subject: 'leg', body: 'legbody' };
+      await getEmailTemplates();
+      expect(storageStore['emailTemplate']).toBeUndefined();
+    });
+
+    it('does not migrate when emailTemplates already exists', async () => {
+      storageStore['emailTemplate'] = { subject: 'leg', body: 'legbody' };
+      storageStore['emailTemplates'] = [
+        { id: 'keep', name: '유지', subject: 'k', body: 'kb' },
+      ];
+      const templates = await getEmailTemplates();
+      expect(templates).toHaveLength(1);
+      expect(templates[0].id).toBe('keep');
     });
   });
 
@@ -142,11 +223,11 @@ describe('Chrome storage wrapper operations', () => {
 
       const key = await getOpenAIKey();
       const recipients = await getRecipients();
-      const template = await getEmailTemplate();
+      const templates = await getEmailTemplates();
 
       expect(key).toBe('sk-test');
       expect(recipients).toHaveLength(1);
-      expect(template).toEqual(DEFAULT_TEMPLATE);
+      expect(templates).toEqual([DEFAULT_TEMPLATE]);
     });
   });
 });

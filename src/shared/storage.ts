@@ -36,12 +36,66 @@ export async function setRecipientGroups(groups: readonly RecipientGroup[]): Pro
   await set('recipientGroups', groups);
 }
 
-export async function getEmailTemplate(): Promise<EmailTemplate> {
-  return (await get('emailTemplate')) ?? DEFAULT_TEMPLATE;
+function newTemplateId(): string {
+  return `tpl_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
-export async function setEmailTemplate(template: EmailTemplate): Promise<void> {
-  await set('emailTemplate', template);
+// Legacy (pre-v1.6) single-template shape stored under the `emailTemplate` key.
+interface LegacyEmailTemplate {
+  readonly subject: string;
+  readonly body: string;
+}
+
+// Idempotent: if a legacy single `emailTemplate` exists and the new
+// `emailTemplates` array does not, seed the array from it, set the active id,
+// persist both, and drop the legacy key. Returns the migrated array or null.
+async function migrateLegacyTemplate(): Promise<readonly EmailTemplate[] | null> {
+  const existing = await get('emailTemplates');
+  if (existing !== undefined) return null;
+
+  const legacyResult = await chrome.storage.local.get('emailTemplate');
+  const legacy = legacyResult['emailTemplate'] as LegacyEmailTemplate | undefined;
+  if (!legacy) return null;
+
+  const seeded: EmailTemplate = {
+    id: newTemplateId(),
+    name: '기본',
+    subject: legacy.subject,
+    body: legacy.body,
+  };
+  const templates: readonly EmailTemplate[] = [seeded];
+  await set('emailTemplates', templates);
+  await set('activeTemplateId', seeded.id);
+  await chrome.storage.local.remove('emailTemplate');
+  return templates;
+}
+
+export async function getEmailTemplates(): Promise<readonly EmailTemplate[]> {
+  const migrated = await migrateLegacyTemplate();
+  if (migrated) return migrated;
+  return (await get('emailTemplates')) ?? [DEFAULT_TEMPLATE];
+}
+
+export async function setEmailTemplates(templates: readonly EmailTemplate[]): Promise<void> {
+  await set('emailTemplates', templates);
+}
+
+export async function getActiveTemplateId(): Promise<string> {
+  await migrateLegacyTemplate();
+  return (await get('activeTemplateId')) ?? DEFAULT_TEMPLATE.id;
+}
+
+export async function setActiveTemplateId(id: string): Promise<void> {
+  await set('activeTemplateId', id);
+}
+
+// Resolves the active template; falls back to the first template when the
+// active id is missing/unknown, and to DEFAULT_TEMPLATE when none exist.
+export async function getActiveTemplate(): Promise<EmailTemplate> {
+  const templates = await getEmailTemplates();
+  if (templates.length === 0) return DEFAULT_TEMPLATE;
+  const activeId = await getActiveTemplateId();
+  return templates.find((t) => t.id === activeId) ?? templates[0];
 }
 
 export function resolveModel(candidate: string | undefined): string {
