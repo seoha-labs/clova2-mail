@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "clova2Mail",
-  "version": "1.5.1",
+  "version": "1.5.3",
   "description": "ClovaNote 회의록을 AI로 요약하여 이메일 발송",
   "permissions": [
     "storage",
@@ -37,7 +37,7 @@
     }
   },
   "oauth2": {
-    "client_id": "934546687572-f48g897lhvtoqpnus9vfjnv5695urqna.apps.googleusercontent.com",
+    "client_id": "558267679140-umhcfd0k3cvsi2gc6tr3an9mcoq820f2.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/userinfo.email"

@@ -4,6 +4,7 @@ export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 export const OPENAI_MODEL = 'gpt-4o-mini';
 export const GMAIL_SEND_URL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
 export const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+export const OAUTH_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 
 export const MAX_TOKENS_SINGLE = 50_000;
 export const MAX_TOKENS_CHUNK = 100_000;

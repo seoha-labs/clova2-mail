@@ -1,4 +1,4 @@
-import { GMAIL_SEND_URL, USERINFO_URL } from '../shared/constants';
+import { GMAIL_SEND_URL, USERINFO_URL, OAUTH_REVOKE_URL } from '../shared/constants';
 
 function utf8ToBase64(str: string): string {
   const encoder = new TextEncoder();
@@ -114,10 +114,31 @@ export async function connectGmail(): Promise<{ success: boolean; email?: string
   }
 }
 
+async function revokeGoogleToken(token: string): Promise<void> {
+  try {
+    // RFC 7009: send the token in the request body, not the query string,
+    // so it cannot leak into proxy/server access logs.
+    await fetch(OAUTH_REVOKE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `token=${encodeURIComponent(token)}`,
+    });
+  } catch (err) {
+    // Best-effort: even if the network revoke fails, we still clear the local
+    // cache below. Log for diagnostics rather than silently swallowing.
+    console.warn('Gmail token revoke failed:', err);
+  }
+}
+
 export async function disconnectGmail(): Promise<void> {
   try {
     const token = await getGmailToken(false);
-    chrome.identity.removeCachedAuthToken({ token });
+    // Revoke the grant on Google's side first, otherwise getAuthToken() would
+    // silently re-issue a token without real re-consent (logout would not stick).
+    await revokeGoogleToken(token);
+    // Then drop the token from Chrome's local cache. Awaited so disconnect only
+    // resolves once the cache is actually cleared.
+    await chrome.identity.removeCachedAuthToken({ token });
   } catch {
     // already disconnected
   }
