@@ -34,6 +34,8 @@ function htmlToPlainText(html: string): string {
 
 export function createMimeMessage(
   to: readonly string[],
+  cc: readonly string[],
+  bcc: readonly string[],
   subject: string,
   htmlBody: string,
 ): string {
@@ -41,11 +43,17 @@ export function createMimeMessage(
   const plainBody = htmlToPlainText(htmlBody);
   const encodedSubject = `=?UTF-8?B?${utf8ToBase64(subject)}?=`;
 
-  return [
+  const headerLines: readonly string[] = [
     `To: ${to.join(', ')}`,
+    ...(cc.length > 0 ? [`Cc: ${cc.join(', ')}`] : []),
+    ...(bcc.length > 0 ? [`Bcc: ${bcc.join(', ')}`] : []),
     `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ];
+
+  return [
+    ...headerLines,
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset=UTF-8',
@@ -146,12 +154,14 @@ export async function disconnectGmail(): Promise<void> {
 
 export async function sendViaGmail(
   to: readonly string[],
+  cc: readonly string[],
+  bcc: readonly string[],
   subject: string,
   htmlBody: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const token = await getGmailToken(false);
-    const message = createMimeMessage(to, subject, htmlBody);
+    const message = createMimeMessage(to, cc, bcc, subject, htmlBody);
     const encoded = utf8ToBase64Url(message);
 
     const response = await fetch(GMAIL_SEND_URL, {

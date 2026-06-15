@@ -5,6 +5,8 @@ describe('createMimeMessage', () => {
   it('creates valid MIME message with multipart/alternative', () => {
     const mime = createMimeMessage(
       ['test@example.com'],
+      [],
+      [],
       'Test Subject',
       '<h1>Hello</h1><p>World</p>',
     );
@@ -21,13 +23,13 @@ describe('createMimeMessage', () => {
   it('handles Korean subject without corruption', () => {
     const mime = createMimeMessage(
       ['test@example.com'],
+      [],
+      [],
       '[회의록] 주간 스프린트 미팅 - 2026-03-19',
       '<p>테스트</p>',
     );
 
-    // Subject should be B-encoded
     expect(mime).toContain('Subject: =?UTF-8?B?');
-    // Decode and verify
     const subjectLine = mime.split('\r\n').find((l) => l.startsWith('Subject:'));
     expect(subjectLine).toBeDefined();
 
@@ -42,18 +44,12 @@ describe('createMimeMessage', () => {
 
   it('handles Korean body content', () => {
     const htmlBody = '<h2>회의 요약</h2><p>이번 스프린트에서는 API 개발을 진행했습니다.</p>';
-    const mime = createMimeMessage(
-      ['test@example.com'],
-      'Test',
-      htmlBody,
-    );
+    const mime = createMimeMessage(['test@example.com'], [], [], 'Test', htmlBody);
 
-    // Find the HTML base64 block (second base64 block after text/html)
     const lines = mime.split('\r\n');
     const htmlTypeIndex = lines.findIndex((l) => l.includes('text/html'));
     expect(htmlTypeIndex).toBeGreaterThan(-1);
 
-    // After Content-Transfer-Encoding: base64 and empty line, next non-empty is the base64 body
     const base64Lines: string[] = [];
     let foundEncoding = false;
     for (let i = htmlTypeIndex; i < lines.length; i++) {
@@ -76,6 +72,8 @@ describe('createMimeMessage', () => {
   it('handles multiple recipients', () => {
     const mime = createMimeMessage(
       ['a@test.com', 'b@test.com', 'c@test.com'],
+      [],
+      [],
       'Subject',
       '<p>Body</p>',
     );
@@ -85,14 +83,59 @@ describe('createMimeMessage', () => {
   it('includes plain text fallback', () => {
     const mime = createMimeMessage(
       ['test@example.com'],
+      [],
+      [],
       'Subject',
       '<h1>Title</h1><p>Paragraph</p><ul><li>Item</li></ul>',
     );
 
-    // Should have both text/plain and text/html parts
     const plainCount = (mime.match(/text\/plain/g) || []).length;
     const htmlCount = (mime.match(/text\/html/g) || []).length;
     expect(plainCount).toBe(1);
     expect(htmlCount).toBe(1);
+  });
+
+  it('emits a Cc header when cc is non-empty', () => {
+    const mime = createMimeMessage(
+      ['to@x.com'],
+      ['cc1@x.com', 'cc2@x.com'],
+      [],
+      'Subject',
+      '<p>Body</p>',
+    );
+    expect(mime).toContain('To: to@x.com');
+    expect(mime).toContain('Cc: cc1@x.com, cc2@x.com');
+    expect(mime).not.toContain('Bcc:');
+  });
+
+  it('emits a Bcc header when bcc is non-empty', () => {
+    const mime = createMimeMessage(
+      ['to@x.com'],
+      [],
+      ['secret@x.com'],
+      'Subject',
+      '<p>Body</p>',
+    );
+    expect(mime).toContain('Bcc: secret@x.com');
+    expect(mime).not.toContain('Cc:');
+  });
+
+  it('emits both Cc and Bcc headers when both are non-empty', () => {
+    const mime = createMimeMessage(
+      ['to@x.com'],
+      ['cc@x.com'],
+      ['bcc@x.com'],
+      'Subject',
+      '<p>Body</p>',
+    );
+    expect(mime).toContain('Cc: cc@x.com');
+    expect(mime).toContain('Bcc: bcc@x.com');
+  });
+
+  it('omits Cc and Bcc headers when both are empty', () => {
+    const mime = createMimeMessage(['to@x.com'], [], [], 'Subject', '<p>Body</p>');
+    const headerBlock = mime.split('\r\n\r\n')[0];
+    expect(headerBlock).not.toContain('Cc:');
+    expect(headerBlock).not.toContain('Bcc:');
   });
 });
