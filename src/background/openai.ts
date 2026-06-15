@@ -103,12 +103,14 @@ export function applySubstitution(
 ): SummaryResult {
   const date = new Date().toISOString().split('T')[0];
 
-  const summaryBulletsText = summary.summary_bullets.map((b) => `- ${b}`).join('\n');
-  const decisionsText = summary.decisions.map((d) => `- ${d}`).join('\n');
-  const actionItemsText = summary.action_items
-    .map((item) => `- @${item.assignee}: ${item.task} (기한: ${item.deadline})`)
+  // The model is asked to return every field, but a malformed response (missing
+  // arrays) must not crash substitution. Default each section to empty.
+  const summaryBulletsText = (summary.summary_bullets ?? []).map((b) => `- ${b}`).join('\n');
+  const decisionsText = (summary.decisions ?? []).map((d) => `- ${d}`).join('\n');
+  const actionItemsText = (summary.action_items ?? [])
+    .map((item) => `- @${item.assignee ?? '미정'}: ${item.task ?? ''} (기한: ${item.deadline ?? '미정'})`)
     .join('\n');
-  const discussionsText = summary.discussions.map((d) => `- ${d}`).join('\n');
+  const discussionsText = (summary.discussions ?? []).map((d) => `- ${d}`).join('\n');
   const attendeesText = attendees.join(', ');
 
   const subject = template.subject
