@@ -1,5 +1,5 @@
 import type { StorageSchema, Recipient, RecipientGroup, EmailTemplate } from './types';
-import { DEFAULT_TEMPLATE } from './constants';
+import { DEFAULT_TEMPLATE, OPENAI_MODEL, AVAILABLE_MODELS } from './constants';
 
 type StorageKey = keyof StorageSchema;
 
@@ -42,4 +42,17 @@ export async function getEmailTemplate(): Promise<EmailTemplate> {
 
 export async function setEmailTemplate(template: EmailTemplate): Promise<void> {
   await set('emailTemplate', template);
+}
+
+export function resolveModel(candidate: string | undefined): string {
+  const known = AVAILABLE_MODELS.some((m) => m.id === candidate);
+  return known ? (candidate as string) : OPENAI_MODEL;
+}
+
+export async function getModel(): Promise<string> {
+  return resolveModel(await get('model'));
+}
+
+export async function setModel(model: string): Promise<void> {
+  await set('model', resolveModel(model));
 }

@@ -2,10 +2,29 @@ import { describe, it, expect } from 'vitest';
 import { AVAILABLE_MODELS, OPENAI_MODEL } from '../../src/shared/constants';
 import type { StorageSchema } from '../../src/shared/types';
 
+import { resolveModel } from '../../src/shared/storage';
+
 describe('StorageSchema.model type', () => {
   it('accepts an object with a string model field', () => {
     const partial: Pick<StorageSchema, 'model'> = { model: 'gpt-4o' };
     expect(partial.model).toBe('gpt-4o');
+  });
+});
+
+describe('resolveModel', () => {
+  it('returns the candidate when it is a known model id', () => {
+    expect(resolveModel('gpt-4o')).toBe('gpt-4o');
+    expect(resolveModel('gpt-4-turbo')).toBe('gpt-4-turbo');
+    expect(resolveModel('gpt-4o-mini')).toBe('gpt-4o-mini');
+  });
+
+  it('falls back to OPENAI_MODEL for an unknown id', () => {
+    expect(resolveModel('gpt-5-ultra')).toBe(OPENAI_MODEL);
+  });
+
+  it('falls back to OPENAI_MODEL for empty / undefined', () => {
+    expect(resolveModel('')).toBe(OPENAI_MODEL);
+    expect(resolveModel(undefined)).toBe(OPENAI_MODEL);
   });
 });
 
