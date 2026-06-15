@@ -15,10 +15,10 @@ export interface TruncateResult {
 }
 
 /**
- * Caps bodyHtml at MAX_BODY_BYTES UTF-8 bytes. When over the cap, cuts at a
- * byte boundary that never splits a multibyte char (TextDecoder with
- * { stream:false } drops a trailing partial sequence rather than emitting
- * U+FFFD when we slice on a clean boundary) and appends a visible marker.
+ * Caps bodyHtml at MAX_BODY_BYTES UTF-8 bytes. When over the cap, backs the
+ * cut point off any UTF-8 continuation bytes (0x80–0xBF) so the prefix ends on
+ * a complete codepoint — never splitting a multibyte char and never relying on
+ * a U+FFFD heuristic — then appends a visible marker.
  */
 export function truncateBody(bodyHtml: string): TruncateResult {
   const bytes = encoder.encode(bodyHtml);
@@ -27,14 +27,11 @@ export function truncateBody(bodyHtml: string): TruncateResult {
   }
   const markerBytes = encoder.encode(TRUNCATION_MARKER).length;
   const budget = MAX_BODY_BYTES - markerBytes;
-  // Decode a prefix; `decoder.decode` on a non-streaming call replaces a
-  // trailing partial multibyte sequence, so trim back to a clean boundary.
-  const cut = budget;
-  let head = decoder.decode(bytes.subarray(0, cut));
-  // Drop a trailing replacement char if the slice landed mid-codepoint.
-  if (head.endsWith('�')) {
-    head = head.slice(0, -1);
-  }
+  // Back up while the byte at the cut is a continuation byte (10xxxxxx), so the
+  // excluded byte starts a fresh codepoint and [0, cut) is a whole-char prefix.
+  let cut = budget;
+  while (cut > 0 && (bytes[cut] & 0xc0) === 0x80) cut--;
+  const head = decoder.decode(bytes.subarray(0, cut));
   return { bodyHtml: head + TRUNCATION_MARKER, truncated: true };
 }
 

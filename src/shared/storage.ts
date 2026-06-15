@@ -45,10 +45,6 @@ export async function setRecipientGroups(groups: readonly RecipientGroup[]): Pro
   await set('recipientGroups', groups);
 }
 
-function newTemplateId(): string {
-  return `tpl_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
 // Legacy (pre-v1.6) single-template shape stored under the `emailTemplate` key.
 interface LegacyEmailTemplate {
   readonly subject: string;
@@ -66,8 +62,12 @@ async function migrateLegacyTemplate(): Promise<readonly EmailTemplate[] | null>
   const legacy = legacyResult['emailTemplate'] as LegacyEmailTemplate | undefined;
   if (!legacy) return null;
 
+  // Deterministic id: getEmailTemplates() and getActiveTemplateId() both run
+  // this migration and are often awaited concurrently (same Promise.all). A
+  // random id would let the two runs seed different ids, leaving
+  // activeTemplateId dangling. A fixed id makes concurrent runs idempotent.
   const seeded: EmailTemplate = {
-    id: newTemplateId(),
+    id: DEFAULT_TEMPLATE.id,
     name: '기본',
     subject: legacy.subject,
     body: legacy.body,
