@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode } from '../../shared/types';
+import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode, EmailTemplate } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
-import { getRecipients, getRecipientGroups } from '../../shared/storage';
+import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId } from '../../shared/storage';
 import { formatRawTranscriptEmail } from './formatRawEmail';
 import { RecipientSelector } from './RecipientSelector';
 
@@ -17,6 +17,8 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [state, setState] = useState<ModalState>(transcript ? 'RAW_DATA_PREVIEW' : 'EXTRACT_FAILED');
   const [recipients, setRecipients] = useState<readonly Recipient[]>([]);
   const [groups, setGroups] = useState<readonly RecipientGroup[]>([]);
+  const [templates, setTemplates] = useState<readonly EmailTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedEmails, setSelectedEmails] = useState<readonly string[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [subject, setSubject] = useState('');
@@ -32,9 +34,16 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const previousFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
-    Promise.all([getRecipients(), getRecipientGroups()]).then(([r, g]) => {
+    Promise.all([
+      getRecipients(),
+      getRecipientGroups(),
+      getEmailTemplates(),
+      getActiveTemplateId(),
+    ]).then(([r, g, t, activeId]) => {
       setRecipients(r);
       setGroups(g);
+      setTemplates(t);
+      setSelectedTemplateId(t.some((x) => x.id === activeId) ? activeId : (t[0]?.id ?? ''));
       setDataLoaded(true);
     });
   }, []);
@@ -105,7 +114,12 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       chrome.runtime.sendMessage(
         {
           type: 'EXTRACT_AND_SUMMARIZE',
-          payload: { transcript: text, meetingTitle, attendees: [...attendees] },
+          payload: {
+            transcript: text,
+            meetingTitle,
+            attendees: [...attendees],
+            templateId: selectedTemplateId,
+          },
         },
         (response: SummarizeResponse) => {
           if (chrome.runtime.lastError) {
@@ -126,7 +140,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         },
       );
     },
-    [meetingTitle, attendees],
+    [meetingTitle, attendees, selectedTemplateId],
   );
 
   const handleCopy = useCallback(() => {
@@ -214,6 +228,23 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   <span key={a} className="c2m-recipient-tag">{a}</span>
                 ))}
               </div>
+
+              {dataLoaded && templates.length > 0 && (
+                <div className="c2m-template-select" style={{ margin: '8px 0' }}>
+                  <label htmlFor="c2m-template" style={{ fontSize: '12px', marginRight: '6px' }}>
+                    요약 템플릿:
+                  </label>
+                  <select
+                    id="c2m-template"
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  >
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="c2m-raw-data-wrapper">
                 <div className="c2m-raw-data-header">
