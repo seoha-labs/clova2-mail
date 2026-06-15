@@ -14,6 +14,7 @@ export interface StorageSchema {
   readonly recipients: readonly Recipient[];
   readonly recipientGroups: readonly RecipientGroup[];
   readonly emailTemplate: EmailTemplate;
+  readonly model: string;
 }
 
 export interface ExtractedData {
