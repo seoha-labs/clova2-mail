@@ -5,6 +5,8 @@ export interface Recipient {
 }
 
 export interface EmailTemplate {
+  readonly id: string;
+  readonly name: string;
   readonly subject: string;
   readonly body: string;
 }
@@ -13,7 +15,8 @@ export interface StorageSchema {
   readonly openaiApiKey: string;
   readonly recipients: readonly Recipient[];
   readonly recipientGroups: readonly RecipientGroup[];
-  readonly emailTemplate: EmailTemplate;
+  readonly emailTemplates: readonly EmailTemplate[];
+  readonly activeTemplateId: string;
   readonly model: string;
 }
 
