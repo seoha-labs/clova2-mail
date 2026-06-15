@@ -37,6 +37,8 @@ export interface SendEmailRequest {
   readonly type: 'SEND_EMAIL';
   readonly payload: {
     readonly to: readonly string[];
+    readonly cc?: readonly string[];
+    readonly bcc?: readonly string[];
     readonly subject: string;
     readonly htmlBody: string;
   };
