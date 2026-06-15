@@ -206,7 +206,10 @@ describe('Gmail OAuth flow', () => {
         String(c[0]).includes('oauth2.googleapis.com/revoke'),
       );
       expect(revokeCall).toBeDefined();
-      expect(String(revokeCall![0])).toContain('token=tok_old');
+      // Token must be in the POST body (RFC 7009), not the URL.
+      expect(String(revokeCall![0])).not.toContain('token=');
+      expect(revokeCall![1]?.method).toBe('POST');
+      expect(String(revokeCall![1]?.body)).toContain('token=tok_old');
     });
 
     it('still clears the local cache when the revoke request fails', async () => {

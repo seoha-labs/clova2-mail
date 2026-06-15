@@ -116,12 +116,17 @@ export async function connectGmail(): Promise<{ success: boolean; email?: string
 
 async function revokeGoogleToken(token: string): Promise<void> {
   try {
-    await fetch(`${OAUTH_REVOKE_URL}?token=${encodeURIComponent(token)}`, {
+    // RFC 7009: send the token in the request body, not the query string,
+    // so it cannot leak into proxy/server access logs.
+    await fetch(OAUTH_REVOKE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `token=${encodeURIComponent(token)}`,
     });
-  } catch {
-    // Best-effort: even if the network revoke fails, we still clear the local cache.
+  } catch (err) {
+    // Best-effort: even if the network revoke fails, we still clear the local
+    // cache below. Log for diagnostics rather than silently swallowing.
+    console.warn('Gmail token revoke failed:', err);
   }
 }
 
