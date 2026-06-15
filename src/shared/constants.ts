@@ -89,6 +89,8 @@ export const DEFAULT_RAW_BODY_TEMPLATE = `## 회의 정보
 {transcript}`;
 
 export const DEFAULT_TEMPLATE: EmailTemplate = {
+  id: 'default',
+  name: '기본',
   subject: '[회의록] {title} ({date})',
   body: `안녕하세요.
 금일 진행된 {title} 미팅 결과를 정리하여 공유드립니다.
