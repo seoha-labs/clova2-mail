@@ -1,4 +1,4 @@
-import type { ProgressInfo } from './types';
+import type { ProgressInfo, SendMode } from './types';
 
 // Content Script → Background
 export interface ExtractAndSummarizeRequest {
@@ -41,6 +41,7 @@ export interface SendEmailRequest {
     readonly bcc?: readonly string[];
     readonly subject: string;
     readonly htmlBody: string;
+    readonly mode?: SendMode;
   };
 }
 

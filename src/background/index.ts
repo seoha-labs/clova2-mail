@@ -2,6 +2,26 @@ import type { MessageRequest } from '../shared/messages';
 import { summarizeTranscript } from './openai';
 import { sendViaGmail, checkGmailStatus, connectGmail, disconnectGmail } from './gmail';
 import { EMAIL_REGEX } from '../shared/email';
+import { appendSendHistory } from '../shared/storage';
+import type { SendMode } from '../shared/types';
+
+async function recordHistoryBestEffort(input: {
+  to: readonly string[];
+  cc?: readonly string[];
+  bcc?: readonly string[];
+  subject: string;
+  bodyHtml: string;
+  mode: SendMode;
+  success: boolean;
+  error?: string;
+}): Promise<void> {
+  try {
+    await appendSendHistory(input);
+  } catch (err) {
+    // Best-effort: a history write failure must never fail the send.
+    console.warn('Send history write failed:', err);
+  }
+}
 
 const ALLOWED_ORIGINS = ['https://clovanote.naver.com'];
 
@@ -58,6 +78,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
 
     case 'SEND_EMAIL': {
       const { to, cc, bcc, subject, htmlBody } = message.payload;
+      const mode: SendMode = message.payload.mode ?? 'summarize';
 
       // Validate recipients (To is required; Cc/Bcc are optional).
       if (!Array.isArray(to) || to.length === 0) {
@@ -85,6 +106,18 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
       const safeSubject = typeof subject === 'string' ? subject.replace(/[\r\n]/g, '') : '';
 
       const result = await sendViaGmail(safeTo, safeCc, safeBcc, safeSubject, htmlBody);
+
+      await recordHistoryBestEffort({
+        to: safeTo,
+        cc: safeCc,
+        bcc: safeBcc,
+        subject: safeSubject,
+        bodyHtml: htmlBody,
+        mode,
+        success: result.success,
+        error: result.success ? undefined : result.error,
+      });
+
       return { type: 'EMAIL_SENT', payload: result };
     }
 

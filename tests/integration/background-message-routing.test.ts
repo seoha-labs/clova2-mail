@@ -31,6 +31,8 @@ vi.stubGlobal('fetch', mockFetch);
 // Import registers the listener
 await import('../../src/background/index');
 
+import { getSendHistory } from '../../src/shared/storage';
+
 // Capture the handler RIGHT AFTER import, before any test clears mocks
 const registeredHandler = chromeMock.runtime.onMessage.addListener.mock.calls[0][0] as (
   message: unknown,
@@ -313,6 +315,58 @@ describe('Background message routing', () => {
       expect(payload.success).toBe(false);
       expect(payload.error).toContain('잘못된 이메일 주소');
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('SEND_EMAIL send history', () => {
+    beforeEach(() => {
+      mockFetch.mockReset();
+      chromeMock.identity.getAuthToken.mockReset();
+      chromeMock.runtime.lastError = null;
+      Object.keys(storageStore).forEach((k) => delete storageStore[k]);
+    });
+
+    it('records a success entry after a successful send', async () => {
+      mockTokenSuccess('tok_h1');
+      mockFetch.mockResolvedValueOnce(gmailOkResponse('msg_h1'));
+
+      await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: { to: ['ok@example.com'], subject: 'Hi', htmlBody: '<p>B</p>', mode: 'summarize' },
+      });
+
+      const history = await getSendHistory();
+      expect(history).toHaveLength(1);
+      expect(history[0].success).toBe(true);
+      expect(history[0].to).toEqual(['ok@example.com']);
+      expect(history[0].subject).toBe('Hi');
+      expect(history[0].mode).toBe('summarize');
+      expect(history[0].error).toBeUndefined();
+    });
+
+    it('records a failure entry with the error when the send fails', async () => {
+      mockTokenFailure('User not signed in');
+
+      await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: { to: ['fail@example.com'], subject: 'Bad', htmlBody: '<p>x</p>' },
+      });
+
+      const history = await getSendHistory();
+      expect(history).toHaveLength(1);
+      expect(history[0].success).toBe(false);
+      expect(history[0].error).toContain('User not signed in');
+      expect(history[0].mode).toBe('summarize'); // default when absent
+    });
+
+    it('does NOT record history for a validation rejection (no recipients)', async () => {
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: { to: [], subject: 'S', htmlBody: '<p>x</p>' },
+      })) as Record<string, unknown>;
+      expect((result.payload as Record<string, unknown>).success).toBe(false);
+      const history = await getSendHistory();
+      expect(history).toHaveLength(0);
     });
   });
 
