@@ -31,6 +31,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
           message.payload.transcript,
           message.payload.meetingTitle,
           message.payload.attendees ?? [],
+          message.payload.templateId,
         );
         return {
           type: 'SUMMARIZE_RESULT',
