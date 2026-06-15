@@ -197,6 +197,123 @@ describe('Background message routing', () => {
       expect(payload.success).toBe(false);
       expect(payload.error).toContain('User not signed in');
     });
+
+    it('sends successfully with valid cc and bcc', async () => {
+      mockTokenSuccess('tok_ccbcc');
+      mockFetch.mockResolvedValueOnce(gmailOkResponse('msg_ccbcc'));
+
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: {
+          to: ['to@example.com'],
+          cc: ['cc@example.com'],
+          bcc: ['bcc@example.com'],
+          subject: 'Test',
+          htmlBody: '<p>Hello</p>',
+        },
+      })) as Record<string, unknown>;
+
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(true);
+      expect(payload.messageId).toBe('msg_ccbcc');
+
+      // Verify the raw MIME carries Cc and Bcc headers.
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body) as { raw: string };
+      const decoded = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(body.raw.replace(/-/g, '+').replace(/_/g, '/')),
+          (c) => c.charCodeAt(0),
+        ),
+      );
+      expect(decoded).toContain('Cc: cc@example.com');
+      expect(decoded).toContain('Bcc: bcc@example.com');
+    });
+
+    it('rejects an invalid cc address before sending', async () => {
+      mockTokenSuccess('tok_badcc');
+
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: {
+          to: ['to@example.com'],
+          cc: ['not-an-email'],
+          subject: 'Test',
+          htmlBody: '<p>Hello</p>',
+        },
+      })) as Record<string, unknown>;
+
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(false);
+      expect(payload.error).toContain('잘못된 이메일 주소');
+      expect(payload.error).toContain('not-an-email');
+      // Must short-circuit: Gmail send fetch never called.
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid bcc address before sending', async () => {
+      mockTokenSuccess('tok_badbcc');
+
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: {
+          to: ['to@example.com'],
+          bcc: ['bad@@@bad'],
+          subject: 'Test',
+          htmlBody: '<p>Hello</p>',
+        },
+      })) as Record<string, unknown>;
+
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(false);
+      expect(payload.error).toContain('잘못된 이메일 주소');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('treats absent cc/bcc as valid (empty)', async () => {
+      mockTokenSuccess('tok_nocc');
+      mockFetch.mockResolvedValueOnce(gmailOkResponse('msg_nocc'));
+
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: { to: ['to@example.com'], subject: 'Test', htmlBody: '<p>Hi</p>' },
+      })) as Record<string, unknown>;
+
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(true);
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body) as { raw: string };
+      const decoded = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(body.raw.replace(/-/g, '+').replace(/_/g, '/')),
+          (c) => c.charCodeAt(0),
+        ),
+      );
+      const headerBlock = decoded.split('\r\n\r\n')[0];
+      expect(headerBlock).not.toContain('Cc:');
+      expect(headerBlock).not.toContain('Bcc:');
+    });
+
+    it('strips CRLF from cc/bcc addresses (header-injection guard)', async () => {
+      mockTokenSuccess('tok_crlf');
+      mockFetch.mockResolvedValueOnce(gmailOkResponse('msg_crlf'));
+
+      const result = (await sendMessage({
+        type: 'SEND_EMAIL',
+        payload: {
+          to: ['to@example.com'],
+          cc: ['cc@example.com\r\nBcc: injected@evil.com'],
+          subject: 'Test',
+          htmlBody: '<p>Hi</p>',
+        },
+      })) as Record<string, unknown>;
+
+      // After stripping CRLF the address becomes a single invalid token, so it
+      // is rejected by EMAIL_REGEX — the injection never reaches Gmail.
+      const payload = result.payload as Record<string, unknown>;
+      expect(payload.success).toBe(false);
+      expect(payload.error).toContain('잘못된 이메일 주소');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET_GMAIL_STATUS', () => {

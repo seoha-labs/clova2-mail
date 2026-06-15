@@ -57,22 +57,34 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
     }
 
     case 'SEND_EMAIL': {
-      const { to, subject, htmlBody } = message.payload;
+      const { to, cc, bcc, subject, htmlBody } = message.payload;
 
-      // Validate email addresses
+      // Validate recipients (To is required; Cc/Bcc are optional).
       if (!Array.isArray(to) || to.length === 0) {
         return { type: 'EMAIL_SENT', payload: { success: false, error: '수신자가 없습니다.' } };
       }
-      const invalidEmails = to.filter((addr: string) => !EMAIL_REGEX.test(addr));
+      const ccList = Array.isArray(cc) ? cc : [];
+      const bccList = Array.isArray(bcc) ? bcc : [];
+
+      // Sanitize CRLF from all header-bound values first (header-injection guard),
+      // then validate the sanitized addresses with the same rule as To.
+      const safeTo = to.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+      const safeCc = ccList.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+      const safeBcc = bccList.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+
+      const invalidEmails = [...safeTo, ...safeCc, ...safeBcc].filter(
+        (addr: string) => !EMAIL_REGEX.test(addr),
+      );
       if (invalidEmails.length > 0) {
-        return { type: 'EMAIL_SENT', payload: { success: false, error: `잘못된 이메일 주소: ${invalidEmails.join(', ')}` } };
+        return {
+          type: 'EMAIL_SENT',
+          payload: { success: false, error: `잘못된 이메일 주소: ${invalidEmails.join(', ')}` },
+        };
       }
 
-      // Sanitize CRLF from all header-bound values
-      const safeTo = to.map((addr: string) => addr.replace(/[\r\n]/g, ''));
       const safeSubject = typeof subject === 'string' ? subject.replace(/[\r\n]/g, '') : '';
 
-      const result = await sendViaGmail(safeTo, safeSubject, htmlBody);
+      const result = await sendViaGmail(safeTo, safeCc, safeBcc, safeSubject, htmlBody);
       return { type: 'EMAIL_SENT', payload: result };
     }
 
