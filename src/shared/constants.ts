@@ -2,6 +2,17 @@ import type { EmailTemplate } from './types';
 
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 export const OPENAI_MODEL = 'gpt-4o-mini';
+
+export interface ModelOption {
+  readonly id: string;
+  readonly label: string;
+}
+
+export const AVAILABLE_MODELS: readonly ModelOption[] = [
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini (빠름·저렴, 기본값)' },
+  { id: 'gpt-4o', label: 'GPT-4o (고품질)' },
+  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+];
 export const GMAIL_SEND_URL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
 export const USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 export const OAUTH_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
