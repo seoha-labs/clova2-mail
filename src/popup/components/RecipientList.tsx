@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { Recipient, RecipientGroup } from '../../shared/types';
 import { getRecipients, setRecipients, getRecipientGroups, setRecipientGroups } from '../../shared/storage';
 import { useStorage } from '../hooks/useStorage';
 import { GroupCard } from './GroupCard';
 import { GroupForm } from './GroupForm';
 import { EMAIL_REGEX } from '../../shared/email';
+import { parseCsvRecipients, type CsvImportResult } from '../lib/csvImport';
 
 export function RecipientList() {
   const [recipients, updateRecipients, loadingRecipients] = useStorage(getRecipients, setRecipients);
@@ -14,6 +15,47 @@ export function RecipientList() {
   const [error, setError] = useState('');
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState<RecipientGroup | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
+  const [importMessage, setImportMessage] = useState('');
+
+  const handleCsvFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = ''; // allow re-importing the same filename
+      if (!file) return;
+
+      setImportResult(null);
+      setImportMessage('');
+
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        setImportMessage('파일을 읽을 수 없습니다.');
+        return;
+      }
+
+      const current = recipients ?? [];
+      const result = parseCsvRecipients(text, current);
+
+      if (result.added.length === 0) {
+        setImportResult(result);
+        setImportMessage(
+          result.skipped.length > 0
+            ? `가져올 수 있는 수신자가 없습니다. (${result.skipped.length}건 스킵)`
+            : '가져올 수 있는 수신자가 없습니다.',
+        );
+        return; // no mutation
+      }
+
+      updateRecipients([...current, ...result.added]);
+      setImportResult(result);
+      setImportMessage(`${result.added.length}건 추가, ${result.skipped.length}건 스킵`);
+    },
+    [recipients, updateRecipients],
+  );
 
   const addRecipient = useCallback(() => {
     setError('');
@@ -156,6 +198,32 @@ export function RecipientList() {
           </button>
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
+        <div className="pt-1">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full py-1.5 text-xs border border-dashed border-gray-300 rounded-md text-gray-500 hover:border-teal-500 hover:text-teal-600 transition-colors"
+          >
+            CSV 가져오기
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            data-testid="csv-file-input"
+            onChange={handleCsvFile}
+            className="hidden"
+          />
+          {importMessage && <p className="text-xs text-gray-600 mt-1">{importMessage}</p>}
+          {importResult && importResult.skipped.length > 0 && (
+            <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto">
+              {importResult.skipped.map((s) => (
+                <li key={s.row} className="text-xs text-red-500">
+                  {s.row}행: {s.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {/* Group Management Section */}
