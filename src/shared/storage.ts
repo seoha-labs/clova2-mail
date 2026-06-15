@@ -1,5 +1,7 @@
-import type { StorageSchema, Recipient, RecipientGroup, EmailTemplate } from './types';
+import type { StorageSchema, Recipient, RecipientGroup, EmailTemplate, SentEmail } from './types';
 import { DEFAULT_TEMPLATE, OPENAI_MODEL, AVAILABLE_MODELS } from './constants';
+import { makeSentEmail, appendToBuffer, removeFromBuffer } from './historyBuffer';
+import type { MakeSentEmailInput } from './historyBuffer';
 
 type StorageKey = keyof StorageSchema;
 
@@ -109,4 +111,36 @@ export async function getModel(): Promise<string> {
 
 export async function setModel(model: string): Promise<void> {
   await set('model', resolveModel(model));
+}
+
+export async function getSendHistory(): Promise<readonly SentEmail[]> {
+  return (await get('sendHistory')) ?? [];
+}
+
+/** Payload for a new history entry; id + sentAt are generated here. */
+export type AppendHistoryInput = Omit<MakeSentEmailInput, 'id' | 'sentAt'>;
+
+/**
+ * Builds a SentEmail (generating id + sentAt) and writes the trimmed,
+ * quota-guarded history back. Returns the created entry. In tests, stub
+ * Date.now() and Math.random() for determinism.
+ */
+export async function appendSendHistory(input: AppendHistoryInput): Promise<SentEmail> {
+  const sentAt = Date.now();
+  const id = `${sentAt}-${Math.random().toString(36).slice(2, 10)}`;
+  const entry = makeSentEmail({ ...input, id, sentAt });
+  const current = await getSendHistory();
+  const next = appendToBuffer(current, entry);
+  await set('sendHistory', next as StorageSchema['sendHistory']);
+  return entry;
+}
+
+export async function deleteHistoryEntry(id: string): Promise<void> {
+  const current = await getSendHistory();
+  const next = removeFromBuffer(current, id);
+  await set('sendHistory', next as StorageSchema['sendHistory']);
+}
+
+export async function clearSendHistory(): Promise<void> {
+  await set('sendHistory', []);
 }

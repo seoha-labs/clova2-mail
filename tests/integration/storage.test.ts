@@ -31,9 +31,14 @@ import {
   getActiveTemplateId,
   setActiveTemplateId,
   getActiveTemplate,
+  getSendHistory,
+  appendSendHistory,
+  deleteHistoryEntry,
+  clearSendHistory,
 } from '../../src/shared/storage';
+import { MAX_HISTORY_ENTRIES } from '../../src/shared/historyBuffer';
 import { DEFAULT_TEMPLATE } from '../../src/shared/constants';
-import type { Recipient, RecipientGroup, EmailTemplate } from '../../src/shared/types';
+import type { Recipient, RecipientGroup, EmailTemplate, SentEmail } from '../../src/shared/types';
 
 describe('Chrome storage wrapper operations', () => {
   beforeEach(() => {
@@ -213,6 +218,92 @@ describe('Chrome storage wrapper operations', () => {
       const result = await getRecipientGroups();
       expect(result).toEqual(newGroups);
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('Send history', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      Object.keys(storageStore).forEach((k) => delete storageStore[k]);
+    });
+
+    it('returns empty array when no history set', async () => {
+      expect(await getSendHistory()).toEqual([]);
+    });
+
+    it('appends an entry with deterministic id and timestamp', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+      const entry = await appendSendHistory({
+        to: ['a@b.com'],
+        subject: '제목',
+        bodyHtml: '<p>본문</p>',
+        mode: 'summarize',
+        success: true,
+      });
+
+      expect(entry.sentAt).toBe(1_700_000_000_000);
+      expect(typeof entry.id).toBe('string');
+      expect(entry.id.length).toBeGreaterThan(0);
+
+      const stored = await getSendHistory();
+      expect(stored).toHaveLength(1);
+      expect(stored[0].id).toBe(entry.id);
+      expect(stored[0].cc).toEqual([]);
+      expect(stored[0].bcc).toEqual([]);
+
+      vi.restoreAllMocks();
+    });
+
+    it('prepends newest and trims to MAX_HISTORY_ENTRIES', async () => {
+      for (let i = 0; i < MAX_HISTORY_ENTRIES + 5; i++) {
+        await appendSendHistory({
+          to: ['a@b.com'],
+          subject: `S${i}`,
+          bodyHtml: '<p>x</p>',
+          mode: 'summarize',
+          success: true,
+        });
+      }
+      const stored = await getSendHistory();
+      expect(stored).toHaveLength(MAX_HISTORY_ENTRIES);
+      expect(stored[0].subject).toBe(`S${MAX_HISTORY_ENTRIES + 4}`); // newest
+    });
+
+    it('records a failure entry with the error message', async () => {
+      await appendSendHistory({
+        to: ['a@b.com'],
+        subject: 'S',
+        bodyHtml: '<p>x</p>',
+        mode: 'raw',
+        success: false,
+        error: 'HTTP 500',
+      });
+      const stored = await getSendHistory();
+      expect(stored[0].success).toBe(false);
+      expect(stored[0].error).toBe('HTTP 500');
+    });
+
+    it('deletes a single entry by id', async () => {
+      const e1 = await appendSendHistory({
+        to: ['a@b.com'], subject: 'A', bodyHtml: '<p>a</p>', mode: 'summarize', success: true,
+      });
+      await appendSendHistory({
+        to: ['a@b.com'], subject: 'B', bodyHtml: '<p>b</p>', mode: 'summarize', success: true,
+      });
+      await deleteHistoryEntry(e1.id);
+      const stored = await getSendHistory();
+      expect(stored).toHaveLength(1);
+      expect(stored.find((e: SentEmail) => e.id === e1.id)).toBeUndefined();
+    });
+
+    it('clears all history', async () => {
+      await appendSendHistory({
+        to: ['a@b.com'], subject: 'A', bodyHtml: '<p>a</p>', mode: 'summarize', success: true,
+      });
+      await clearSendHistory();
+      expect(await getSendHistory()).toEqual([]);
     });
   });
 
