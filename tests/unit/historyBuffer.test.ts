@@ -89,3 +89,63 @@ describe('makeSentEmail', () => {
     expect(entry.bodyHtml).toContain('[내용이 잘렸습니다]');
   });
 });
+
+import {
+  appendToBuffer,
+  MAX_HISTORY_ENTRIES,
+  MAX_TOTAL_BYTES,
+} from '../../src/shared/historyBuffer';
+import type { SentEmail } from '../../src/shared/types';
+
+function makeEntry(id: string, bodyHtml = '<p>x</p>'): SentEmail {
+  return makeSentEmail({
+    id,
+    sentAt: Number(id),
+    to: ['a@b.com'],
+    subject: 'S',
+    bodyHtml,
+    mode: 'summarize',
+    success: true,
+  });
+}
+
+describe('appendToBuffer', () => {
+  it('prepends the newest entry without mutating the input', () => {
+    const history = [makeEntry('1')];
+    const next = appendToBuffer(history, makeEntry('2'));
+    expect(next[0].id).toBe('2');
+    expect(next[1].id).toBe('1');
+    expect(history).toHaveLength(1); // input untouched
+  });
+
+  it('trims to MAX_HISTORY_ENTRIES, dropping the oldest', () => {
+    let history: readonly SentEmail[] = [];
+    for (let i = 0; i < MAX_HISTORY_ENTRIES + 10; i++) {
+      history = appendToBuffer(history, makeEntry(String(i)));
+    }
+    expect(history).toHaveLength(MAX_HISTORY_ENTRIES);
+    expect(history[0].id).toBe(String(MAX_HISTORY_ENTRIES + 9)); // newest
+    // oldest survivor is index (count-1 - (MAX-1)) = 10
+    expect(history[history.length - 1].id).toBe('10');
+  });
+
+  it('drops oldest entries until total serialized size fits the quota', () => {
+    // Each body ~100KB; a handful blows past MAX_TOTAL_BYTES.
+    const bigBody = '<p>' + 'a'.repeat(100 * 1024) + '</p>';
+    let history: readonly SentEmail[] = [];
+    for (let i = 0; i < 60; i++) {
+      history = appendToBuffer(history, makeEntry(String(i), bigBody));
+    }
+    const totalBytes = new TextEncoder().encode(JSON.stringify(history)).length;
+    expect(totalBytes).toBeLessThanOrEqual(MAX_TOTAL_BYTES);
+    expect(history[0].id).toBe('59'); // newest always kept
+    expect(history.length).toBeGreaterThan(0);
+  });
+
+  it('always keeps the newest entry even if it alone is near the cap', () => {
+    const nearCap = '<p>' + 'a'.repeat(200 * 1024) + '</p>';
+    const history = appendToBuffer([], makeEntry('1', nearCap));
+    expect(history).toHaveLength(1);
+    expect(history[0].id).toBe('1');
+  });
+});

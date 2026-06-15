@@ -72,3 +72,36 @@ export function makeSentEmail(input: MakeSentEmailInput): SentEmail {
   };
   return input.error === undefined ? base : { ...base, error: input.error };
 }
+
+/** Ring-buffer length cap. */
+export const MAX_HISTORY_ENTRIES = 50;
+
+/**
+ * Total serialized-history byte budget. chrome.storage.local allows ~5MB
+ * across all keys; reserve a conservative slice for the history key so other
+ * keys (recipients, templates) keep headroom.
+ */
+export const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
+
+const totalEncoder = new TextEncoder();
+
+function serializedBytes(history: readonly SentEmail[]): number {
+  return totalEncoder.encode(JSON.stringify(history)).length;
+}
+
+/**
+ * Returns a NEW history array with `entry` prepended (newest first), trimmed to
+ * MAX_HISTORY_ENTRIES, then trimmed further by dropping the oldest (tail) until
+ * the serialized size fits MAX_TOTAL_BYTES. The newest entry is never dropped.
+ */
+export function appendToBuffer(
+  history: readonly SentEmail[],
+  entry: SentEmail,
+): readonly SentEmail[] {
+  let next: SentEmail[] = [entry, ...history].slice(0, MAX_HISTORY_ENTRIES);
+  // Drop oldest until it fits, but always keep at least the newest entry.
+  while (next.length > 1 && serializedBytes(next) > MAX_TOTAL_BYTES) {
+    next = next.slice(0, -1);
+  }
+  return next;
+}
