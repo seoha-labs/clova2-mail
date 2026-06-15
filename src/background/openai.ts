@@ -1,14 +1,13 @@
 import { encode } from 'gpt-tokenizer';
 import {
   OPENAI_API_URL,
-  OPENAI_MODEL,
   SYSTEM_PROMPT,
   MAX_TOKENS_SINGLE,
   MAX_TOKENS_CHUNK,
   CHUNK_SIZE,
 } from '../shared/constants';
 import type { SummaryJson, SummaryResult, EmailTemplate, ProgressInfo } from '../shared/types';
-import { getOpenAIKey, getEmailTemplate } from '../shared/storage';
+import { getOpenAIKey, getEmailTemplate, getModel } from '../shared/storage';
 
 export function countTokens(text: string): number {
   return encode(text).length;
@@ -49,7 +48,12 @@ function extractCustomVariables(template: EmailTemplate): string[] {
   return custom;
 }
 
-async function callOpenAI(tokenOrKey: string, transcript: string, template: EmailTemplate): Promise<SummaryJson> {
+async function callOpenAI(
+  tokenOrKey: string,
+  transcript: string,
+  template: EmailTemplate,
+  model: string,
+): Promise<SummaryJson> {
   const customVars = extractCustomVariables(template);
   const customVarsInstruction = customVars.length > 0
     ? `\n\n## 유추가 필요한 템플릿 변수\n아래 변수들의 값을 회의 원문에서 유추하여 inferred_variables에 반드시 포함하세요.\n변수 목록: ${customVars.map((v) => `{${v}}`).join(', ')}`
@@ -64,7 +68,7 @@ async function callOpenAI(tokenOrKey: string, transcript: string, template: Emai
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
@@ -144,6 +148,7 @@ async function mergeSummaries(
   tokenOrKey: string,
   partials: readonly SummaryJson[],
   template: EmailTemplate,
+  model: string,
 ): Promise<SummaryJson> {
   const mergePrompt = `아래는 긴 회의록을 구간별로 정리한 결과들입니다.
 이들을 하나의 통합 정리본으로 합성해 주세요. 동일한 JSON 스키마를 사용하세요.
@@ -151,7 +156,7 @@ async function mergeSummaries(
 
 ${partials.map((p, i) => `### 구간 ${i + 1}\n${JSON.stringify(p, null, 2)}`).join('\n\n')}`;
 
-  return await callOpenAI(tokenOrKey, mergePrompt, template);
+  return await callOpenAI(tokenOrKey, mergePrompt, template, model);
 }
 
 export async function summarizeTranscript(
@@ -166,6 +171,7 @@ export async function summarizeTranscript(
   }
 
   const template = await getEmailTemplate();
+  const model = await getModel();
   const tokenCount = countTokens(transcript);
 
   if (tokenCount > MAX_TOKENS_CHUNK) {
@@ -176,7 +182,7 @@ export async function summarizeTranscript(
   }
 
   if (tokenCount <= MAX_TOKENS_SINGLE) {
-    const summary = await callOpenAI(apiKey, transcript, template);
+    const summary = await callOpenAI(apiKey, transcript, template, model);
     return formatSummaryToMarkdown(summary, template, meetingTitle, attendees);
   }
 
@@ -186,14 +192,14 @@ export async function summarizeTranscript(
 
   const partialSummaries = await Promise.all(
     chunks.map(async (chunk) => {
-      const result = await callOpenAI(apiKey, chunk, template);
+      const result = await callOpenAI(apiKey, chunk, template, model);
       completed += 1;
       onProgress?.({ current: completed, total: chunks.length });
       return result;
     }),
   );
 
-  const merged = await mergeSummaries(apiKey, partialSummaries, template);
+  const merged = await mergeSummaries(apiKey, partialSummaries, template, model);
   return formatSummaryToMarkdown(merged, template, meetingTitle, attendees);
 }
 

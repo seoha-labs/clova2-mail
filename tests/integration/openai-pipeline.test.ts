@@ -180,6 +180,50 @@ describe('OpenAI chunking pipeline (full flow)', () => {
   });
 });
 
+import { OPENAI_MODEL } from '../../src/shared/constants';
+
+function validSummaryJson() {
+  return {
+    summary_bullets: ['요약 1'],
+    decisions: ['결정 1'],
+    action_items: [{ task: '작업', assignee: '담당', deadline: '추후 논의' }],
+    discussions: ['논의 1'],
+  };
+}
+
+function lastRequestBody() {
+  const call = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+  return JSON.parse(call[1].body as string);
+}
+
+describe('model selection (Epic C)', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    Object.keys(storageStore).forEach((k) => delete storageStore[k]);
+    storageStore['openaiApiKey'] = 'sk-test';
+  });
+
+  it('sends the default model when none is stored', async () => {
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe(OPENAI_MODEL);
+  });
+
+  it('sends the stored model when it is a known id', async () => {
+    storageStore['model'] = 'gpt-4o';
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe('gpt-4o');
+  });
+
+  it('falls back to the default when the stored model is unknown', async () => {
+    storageStore['model'] = 'gpt-9-imaginary';
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe(OPENAI_MODEL);
+  });
+});
+
 describe('splitByParagraphs edge cases', () => {
   it('single paragraph exceeding maxTokens stays as one chunk', () => {
     const text = 'word '.repeat(5000);
