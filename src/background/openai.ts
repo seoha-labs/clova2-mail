@@ -7,7 +7,7 @@ import {
   CHUNK_SIZE,
 } from '../shared/constants';
 import type { SummaryJson, SummaryResult, EmailTemplate, ProgressInfo } from '../shared/types';
-import { getOpenAIKey, getEmailTemplate, getModel } from '../shared/storage';
+import { getOpenAIKey, getEmailTemplates, getActiveTemplateId, getModel } from '../shared/storage';
 
 export function countTokens(text: string): number {
   return encode(text).length;
@@ -95,7 +95,7 @@ async function callOpenAI(
   return JSON.parse(content) as SummaryJson;
 }
 
-function formatSummaryToMarkdown(
+export function applySubstitution(
   summary: SummaryJson,
   template: EmailTemplate,
   title: string,
@@ -159,10 +159,23 @@ ${partials.map((p, i) => `### 구간 ${i + 1}\n${JSON.stringify(p, null, 2)}`).j
   return await callOpenAI(tokenOrKey, mergePrompt, template, model);
 }
 
+export function resolveTemplate(
+  templates: readonly EmailTemplate[],
+  requestedId: string | undefined,
+  activeId: string,
+): EmailTemplate {
+  return (
+    templates.find((t) => t.id === requestedId) ??
+    templates.find((t) => t.id === activeId) ??
+    templates[0]
+  );
+}
+
 export async function summarizeTranscript(
   transcript: string,
   meetingTitle: string,
   attendees: readonly string[] = [],
+  templateId?: string,
   onProgress?: (progress: ProgressInfo) => void,
 ): Promise<SummaryResult> {
   const apiKey = await getOpenAIKey();
@@ -170,7 +183,9 @@ export async function summarizeTranscript(
     throw new Error('OpenAI API key가 설정되지 않았습니다. 확장 프로그램 설정에서 API key를 입력하세요.');
   }
 
-  const template = await getEmailTemplate();
+  const templates = await getEmailTemplates();
+  const activeId = await getActiveTemplateId();
+  const template = resolveTemplate(templates, templateId, activeId);
   const model = await getModel();
   const tokenCount = countTokens(transcript);
 
@@ -183,7 +198,7 @@ export async function summarizeTranscript(
 
   if (tokenCount <= MAX_TOKENS_SINGLE) {
     const summary = await callOpenAI(apiKey, transcript, template, model);
-    return formatSummaryToMarkdown(summary, template, meetingTitle, attendees);
+    return applySubstitution(summary, template, meetingTitle, attendees);
   }
 
   // Chunk-Summarize-Merge (병렬 처리)
@@ -200,6 +215,6 @@ export async function summarizeTranscript(
   );
 
   const merged = await mergeSummaries(apiKey, partialSummaries, template, model);
-  return formatSummaryToMarkdown(merged, template, meetingTitle, attendees);
+  return applySubstitution(merged, template, meetingTitle, attendees);
 }
 
