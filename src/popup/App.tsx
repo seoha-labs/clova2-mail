@@ -2,6 +2,7 @@ import { useGmailAuth } from './hooks/useAuth';
 import { AuthSection } from './components/AuthSection';
 import { RecipientList } from './components/RecipientList';
 import { TemplateEditor } from './components/TemplateEditor';
+import { SendHistory } from './components/SendHistory';
 
 export function App() {
   const { state: gmail, connect, disconnect } = useGmailAuth();
@@ -69,6 +70,7 @@ export function App() {
         <AuthSection />
         <RecipientList />
         <TemplateEditor />
+        <SendHistory />
       </div>
     </div>
   );
