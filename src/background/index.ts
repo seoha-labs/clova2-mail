@@ -1,8 +1,8 @@
 import type { MessageRequest } from '../shared/messages';
 import { summarizeTranscript } from './openai';
 import { sendViaGmail, checkGmailStatus, connectGmail, disconnectGmail } from './gmail';
+import { EMAIL_REGEX } from '../shared/email';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_ORIGINS = ['https://clovanote.naver.com'];
 
 function isAllowedSender(sender: chrome.runtime.MessageSender): boolean {

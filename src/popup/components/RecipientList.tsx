@@ -4,8 +4,7 @@ import { getRecipients, setRecipients, getRecipientGroups, setRecipientGroups } 
 import { useStorage } from '../hooks/useStorage';
 import { GroupCard } from './GroupCard';
 import { GroupForm } from './GroupForm';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { EMAIL_REGEX } from '../../shared/email';
 
 export function RecipientList() {
   const [recipients, updateRecipients, loadingRecipients] = useStorage(getRecipients, setRecipients);
