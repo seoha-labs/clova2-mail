@@ -5,6 +5,9 @@ import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
 import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId, getPendingResend, clearPendingResend } from '../../shared/storage';
 import { buildRawPreview } from './rawPreviewModel';
 import { RecipientSelector } from './RecipientSelector';
+import type { RecipientSelection } from './RecipientSelector';
+
+const EMPTY_SELECTION: RecipientSelection = { to: [], cc: [], bcc: [] };
 
 interface ModalProps {
   readonly transcript: string | null;
@@ -19,7 +22,8 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [groups, setGroups] = useState<readonly RecipientGroup[]>([]);
   const [templates, setTemplates] = useState<readonly EmailTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [selectedEmails, setSelectedEmails] = useState<readonly string[]>([]);
+  const [selection, setSelection] = useState<RecipientSelection>(EMPTY_SELECTION);
+  const [resendSelection, setResendSelection] = useState<RecipientSelection | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlBody, setHtmlBody] = useState('');
@@ -56,7 +60,9 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       sendModeRef.current = 'summarize';
       setSubject(pending.subject);
       setHtmlBody(pending.bodyHtml);
-      setSelectedEmails([...pending.to, ...pending.cc, ...pending.bcc]);
+      const staged: RecipientSelection = { to: pending.to, cc: pending.cc, bcc: pending.bcc };
+      setResendSelection(staged);
+      setSelection(staged);
       setState('PREVIEW');
       clearPendingResend();
     });
@@ -169,13 +175,13 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
     });
   }, [transcript, meetingTitle, attendees]);
 
-  const handleSelectionChange = useCallback((emails: readonly string[]) => {
-    setSelectedEmails(emails);
+  const handleSelectionChange = useCallback((sel: RecipientSelection) => {
+    setSelection(sel);
   }, []);
 
   const handleSend = useCallback(() => {
-    if (selectedEmails.length === 0) {
-      setError('수신자를 선택하세요.');
+    if (selection.to.length === 0) {
+      setError('받는 사람(To)을 한 명 이상 선택하세요.');
       return;
     }
     setError('');
@@ -186,9 +192,12 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       {
         type: 'SEND_EMAIL',
         payload: {
-          to: [...selectedEmails],
+          to: [...selection.to],
+          cc: [...selection.cc],
+          bcc: [...selection.bcc],
           subject,
           htmlBody: styledHtml,
+          mode: sendModeRef.current,
         },
       },
       (response: SendEmailResponse) => {
@@ -206,7 +215,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         }
       },
     );
-  }, [selectedEmails, subject, htmlBody, onClose]);
+  }, [selection, subject, htmlBody, onClose]);
 
   const handleManualSubmit = useCallback(() => {
     if (manualText.trim().length < 50) {
@@ -332,6 +341,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   recipients={recipients}
                   groups={groups}
                   onSelectionChange={handleSelectionChange}
+                  initialSelection={resendSelection ?? undefined}
                 />
               )}
               {state === 'PREVIEW' && error && (

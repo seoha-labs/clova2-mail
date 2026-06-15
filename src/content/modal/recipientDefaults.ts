@@ -20,3 +20,18 @@ export function defaultToSelection(
 export function emptySelection(): SelectionState {
   return { groupIds: new Set<string>(), recipientIds: new Set<string>() };
 }
+
+/**
+ * Map a list of emails back to saved recipient ids (case-insensitive).
+ * Used to re-seed the selector on re-send. Emails with no matching saved
+ * recipient are dropped (they cannot be represented as a chip).
+ */
+export function recipientIdsForEmails(
+  emails: readonly string[],
+  recipients: readonly Recipient[],
+): Set<string> {
+  const wanted = new Set(emails.map((e) => e.toLowerCase()));
+  return new Set(
+    recipients.filter((r) => wanted.has(r.email.toLowerCase())).map((r) => r.id),
+  );
+}

@@ -53,4 +53,30 @@ describe('Modal — raw mode unified preview', () => {
     // No email was sent merely by entering the preview.
     expect(sendMessage).not.toHaveBeenCalled();
   });
+
+  it('sends to/cc/bcc and mode in the SEND_EMAIL payload (regression: cc/bcc were dropped)', async () => {
+    store.recipients = [{ id: 'r1', email: 'a@example.com', name: 'A' }];
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <Modal
+        transcript={'이것은 회의 원문입니다.'}
+        meetingTitle={'Sprint Review'}
+        attendees={['Alice']}
+        onClose={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '원문 그대로 발송' }));
+    // To defaults to everyone → the single saved recipient is selected.
+    await waitFor(() => screen.getByText(/받는 사람 수신자: 1명/));
+
+    await user.click(screen.getByRole('button', { name: '이메일 발송' }));
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const payload = sendMessage.mock.calls[0][0].payload;
+    expect(payload.to).toEqual(['a@example.com']);
+    expect(payload.cc).toEqual([]);
+    expect(payload.bcc).toEqual([]);
+    expect(payload.mode).toBe('raw');
+  });
 });

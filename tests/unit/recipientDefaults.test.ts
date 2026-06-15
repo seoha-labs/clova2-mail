@@ -3,6 +3,7 @@ import type { Recipient, RecipientGroup } from '../../src/shared/types';
 import {
   defaultToSelection,
   emptySelection,
+  recipientIdsForEmails,
 } from '../../src/content/modal/recipientDefaults';
 
 const recipients: readonly Recipient[] = [
@@ -39,5 +40,27 @@ describe('emptySelection', () => {
     const b = emptySelection();
     expect(a.groupIds).not.toBe(b.groupIds);
     expect(a.recipientIds).not.toBe(b.recipientIds);
+  });
+});
+
+describe('recipientIdsForEmails', () => {
+  const recipients = [
+    { id: 'r1', email: 'a@example.com', name: 'A' },
+    { id: 'r2', email: 'B@Example.com', name: 'B' },
+    { id: 'r3', email: 'c@example.com', name: 'C' },
+  ];
+
+  it('maps emails back to recipient ids (case-insensitive)', () => {
+    const ids = recipientIdsForEmails(['a@example.com', 'b@example.com'], recipients);
+    expect([...ids].sort()).toEqual(['r1', 'r2']);
+  });
+
+  it('drops emails with no matching saved recipient', () => {
+    const ids = recipientIdsForEmails(['a@example.com', 'unknown@x.com'], recipients);
+    expect([...ids]).toEqual(['r1']);
+  });
+
+  it('returns an empty set for no emails', () => {
+    expect(recipientIdsForEmails([], recipients).size).toBe(0);
   });
 });
