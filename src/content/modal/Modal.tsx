@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode, EmailTemplate } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
@@ -28,7 +28,8 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [subject, setSubject] = useState('');
   const [htmlBody, setHtmlBody] = useState('');
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  // Progress is reserved for chunked-summary updates; no setter is wired yet.
+  const [progress] = useState<ProgressInfo | null>(null);
   const [manualText, setManualText] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);

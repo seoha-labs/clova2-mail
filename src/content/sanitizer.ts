@@ -1,7 +1,7 @@
-import DOMPurify from 'dompurify';
+import DOMPurify, { type Config } from 'dompurify';
 import { marked } from 'marked';
 
-const SANITIZE_CONFIG: DOMPurify.Config = {
+const SANITIZE_CONFIG: Config = {
   ALLOWED_TAGS: [
     'h1', 'h2', 'h3', 'h4',
     'p', 'br', 'hr',
