@@ -26,11 +26,10 @@ import { CHUNK_SIZE, MAX_TOKENS_SINGLE } from '../../src/shared/constants';
 
 function makeSummaryJson(overrides: Partial<SummaryJson> = {}): SummaryJson {
   return {
-    summary: 'Meeting summary',
+    summary_bullets: ['Meeting summary'],
     decisions: ['Decision A'],
     action_items: [{ task: 'Do X', assignee: 'Alice', deadline: '2026-04-01' }],
-    attendees: ['Alice', 'Bob'],
-    keywords: ['sprint'],
+    discussions: ['Discussion A'],
     ...overrides,
   };
 }
@@ -77,7 +76,7 @@ describe('OpenAI chunking pipeline (full flow)', () => {
     const expectedCalls = chunks.length + 1;
 
     for (let i = 0; i < expectedCalls; i++) {
-      mockFetch.mockResolvedValueOnce(openAiOk(makeSummaryJson({ summary: `Part ${i}` })));
+      mockFetch.mockResolvedValueOnce(openAiOk(makeSummaryJson({ summary_bullets: [`Part ${i}`] })));
     }
 
     const result = await summarizeTranscript(paragraphs, 'Big Meeting');
@@ -104,7 +103,7 @@ describe('OpenAI chunking pipeline (full flow)', () => {
 
     const progressCalls: Array<{ current: number; total: number }> = [];
 
-    await summarizeTranscript(paragraphs, 'Progress Test', (info) => {
+    await summarizeTranscript(paragraphs, 'Progress Test', [], undefined, (info) => {
       progressCalls.push({ ...info });
     });
 
@@ -160,11 +159,10 @@ describe('OpenAI chunking pipeline (full flow)', () => {
     mockFetch.mockResolvedValueOnce(
       openAiOk(
         makeSummaryJson({
-          summary: 'API 개발 진행 상황 공유',
+          summary_bullets: ['API 개발 진행 상황 공유'],
           decisions: ['v2 API 릴리스 확정'],
           action_items: [{ task: 'API 문서 작성', assignee: '김철수', deadline: '3/25' }],
-          attendees: ['김철수', '이영희'],
-          keywords: ['API', '릴리스'],
+          discussions: ['API 버전 호환성 논의'],
         }),
       ),
     );
