@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode } from '../../shared/types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { ModalState, Recipient, RecipientGroup, ProgressInfo, SendMode, EmailTemplate } from '../../shared/types';
 import type { SummarizeResponse, SendEmailResponse } from '../../shared/messages';
 import { renderSafeHtml, sanitizeHtml, injectEmailStyles } from '../sanitizer';
-import { getRecipients, getRecipientGroups } from '../../shared/storage';
-import { formatRawTranscriptEmail } from './formatRawEmail';
+import { getRecipients, getRecipientGroups, getEmailTemplates, getActiveTemplateId, getPendingResend, clearPendingResend } from '../../shared/storage';
+import { buildRawPreview } from './rawPreviewModel';
 import { RecipientSelector } from './RecipientSelector';
+import type { RecipientSelection } from './RecipientSelector';
+
+const EMPTY_SELECTION: RecipientSelection = { to: [], cc: [], bcc: [] };
 
 interface ModalProps {
   readonly transcript: string | null;
@@ -17,12 +20,16 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const [state, setState] = useState<ModalState>(transcript ? 'RAW_DATA_PREVIEW' : 'EXTRACT_FAILED');
   const [recipients, setRecipients] = useState<readonly Recipient[]>([]);
   const [groups, setGroups] = useState<readonly RecipientGroup[]>([]);
-  const [selectedEmails, setSelectedEmails] = useState<readonly string[]>([]);
+  const [templates, setTemplates] = useState<readonly EmailTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selection, setSelection] = useState<RecipientSelection>(EMPTY_SELECTION);
+  const [resendSelection, setResendSelection] = useState<RecipientSelection | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlBody, setHtmlBody] = useState('');
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  // Progress is reserved for chunked-summary updates; no setter is wired yet.
+  const [progress] = useState<ProgressInfo | null>(null);
   const [manualText, setManualText] = useState('');
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -32,11 +39,37 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
   const previousFocusRef = useRef<Element | null>(null);
 
   useEffect(() => {
-    Promise.all([getRecipients(), getRecipientGroups()]).then(([r, g]) => {
+    Promise.all([
+      getRecipients(),
+      getRecipientGroups(),
+      getEmailTemplates(),
+      getActiveTemplateId(),
+    ]).then(([r, g, t, activeId]) => {
       setRecipients(r);
       setGroups(g);
+      setTemplates(t);
+      setSelectedTemplateId(t.some((x) => x.id === activeId) ? activeId : (t[0]?.id ?? ''));
       setDataLoaded(true);
     });
+  }, []);
+
+  // Re-send hand-off: if the popup staged a payload, load it into editable PREVIEW.
+  useEffect(() => {
+    let cancelled = false;
+    getPendingResend().then((pending) => {
+      if (cancelled || !pending) return;
+      sendModeRef.current = 'summarize';
+      setSubject(pending.subject);
+      setHtmlBody(pending.bodyHtml);
+      const staged: RecipientSelection = { to: pending.to, cc: pending.cc, bcc: pending.bcc };
+      setResendSelection(staged);
+      setSelection(staged);
+      setState('PREVIEW');
+      clearPendingResend();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Focus management: save previous focus and restore on close
@@ -90,10 +123,10 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
 
   const handleRawSend = useCallback(() => {
     if (!transcript) return;
-    sendModeRef.current = 'raw';
-    const result = formatRawTranscriptEmail(transcript, meetingTitle, attendees);
-    setSubject(result.subject);
-    setHtmlBody(result.htmlBody);
+    const preview = buildRawPreview(transcript, meetingTitle, attendees);
+    sendModeRef.current = preview.mode;
+    setSubject(preview.subject);
+    setHtmlBody(preview.htmlBody);
     setState('PREVIEW');
   }, [transcript, meetingTitle, attendees]);
 
@@ -105,7 +138,12 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       chrome.runtime.sendMessage(
         {
           type: 'EXTRACT_AND_SUMMARIZE',
-          payload: { transcript: text, meetingTitle, attendees: [...attendees] },
+          payload: {
+            transcript: text,
+            meetingTitle,
+            attendees: [...attendees],
+            templateId: selectedTemplateId,
+          },
         },
         (response: SummarizeResponse) => {
           if (chrome.runtime.lastError) {
@@ -126,7 +164,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         },
       );
     },
-    [meetingTitle, attendees],
+    [meetingTitle, attendees, selectedTemplateId],
   );
 
   const handleCopy = useCallback(() => {
@@ -138,13 +176,13 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
     });
   }, [transcript, meetingTitle, attendees]);
 
-  const handleSelectionChange = useCallback((emails: readonly string[]) => {
-    setSelectedEmails(emails);
+  const handleSelectionChange = useCallback((sel: RecipientSelection) => {
+    setSelection(sel);
   }, []);
 
   const handleSend = useCallback(() => {
-    if (selectedEmails.length === 0) {
-      setError('수신자를 선택하세요.');
+    if (selection.to.length === 0) {
+      setError('받는 사람(To)을 한 명 이상 선택하세요.');
       return;
     }
     setError('');
@@ -155,9 +193,12 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
       {
         type: 'SEND_EMAIL',
         payload: {
-          to: [...selectedEmails],
+          to: [...selection.to],
+          cc: [...selection.cc],
+          bcc: [...selection.bcc],
           subject,
           htmlBody: styledHtml,
+          mode: sendModeRef.current,
         },
       },
       (response: SendEmailResponse) => {
@@ -175,7 +216,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
         }
       },
     );
-  }, [selectedEmails, subject, htmlBody, onClose]);
+  }, [selection, subject, htmlBody, onClose]);
 
   const handleManualSubmit = useCallback(() => {
     if (manualText.trim().length < 50) {
@@ -214,6 +255,23 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   <span key={a} className="c2m-recipient-tag">{a}</span>
                 ))}
               </div>
+
+              {dataLoaded && templates.length > 0 && (
+                <div className="c2m-template-select" style={{ margin: '8px 0' }}>
+                  <label htmlFor="c2m-template" style={{ fontSize: '12px', marginRight: '6px' }}>
+                    요약 템플릿:
+                  </label>
+                  <select
+                    id="c2m-template"
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  >
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="c2m-raw-data-wrapper">
                 <div className="c2m-raw-data-header">
@@ -284,6 +342,7 @@ export function Modal({ transcript, meetingTitle, attendees, onClose }: ModalPro
                   recipients={recipients}
                   groups={groups}
                   onSelectionChange={handleSelectionChange}
+                  initialSelection={resendSelection ?? undefined}
                 />
               )}
               {state === 'PREVIEW' && error && (

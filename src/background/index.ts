@@ -1,8 +1,28 @@
 import type { MessageRequest } from '../shared/messages';
 import { summarizeTranscript } from './openai';
 import { sendViaGmail, checkGmailStatus, connectGmail, disconnectGmail } from './gmail';
+import { EMAIL_REGEX } from '../shared/email';
+import { appendSendHistory } from '../shared/storage';
+import type { SendMode } from '../shared/types';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+async function recordHistoryBestEffort(input: {
+  to: readonly string[];
+  cc?: readonly string[];
+  bcc?: readonly string[];
+  subject: string;
+  bodyHtml: string;
+  mode: SendMode;
+  success: boolean;
+  error?: string;
+}): Promise<void> {
+  try {
+    await appendSendHistory(input);
+  } catch (err) {
+    // Best-effort: a history write failure must never fail the send.
+    console.warn('Send history write failed:', err);
+  }
+}
+
 const ALLOWED_ORIGINS = ['https://clovanote.naver.com'];
 
 function isAllowedSender(sender: chrome.runtime.MessageSender): boolean {
@@ -31,6 +51,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
           message.payload.transcript,
           message.payload.meetingTitle,
           message.payload.attendees ?? [],
+          message.payload.templateId,
         );
         return {
           type: 'SUMMARIZE_RESULT',
@@ -56,22 +77,47 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
     }
 
     case 'SEND_EMAIL': {
-      const { to, subject, htmlBody } = message.payload;
+      const { to, cc, bcc, subject, htmlBody } = message.payload;
+      const mode: SendMode = message.payload.mode ?? 'summarize';
 
-      // Validate email addresses
+      // Validate recipients (To is required; Cc/Bcc are optional).
       if (!Array.isArray(to) || to.length === 0) {
         return { type: 'EMAIL_SENT', payload: { success: false, error: '수신자가 없습니다.' } };
       }
-      const invalidEmails = to.filter((addr: string) => !EMAIL_REGEX.test(addr));
+      const ccList = Array.isArray(cc) ? cc : [];
+      const bccList = Array.isArray(bcc) ? bcc : [];
+
+      // Sanitize CRLF from all header-bound values first (header-injection guard),
+      // then validate the sanitized addresses with the same rule as To.
+      const safeTo = to.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+      const safeCc = ccList.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+      const safeBcc = bccList.map((addr: string) => addr.replace(/[\r\n]/g, ''));
+
+      const invalidEmails = [...safeTo, ...safeCc, ...safeBcc].filter(
+        (addr: string) => !EMAIL_REGEX.test(addr),
+      );
       if (invalidEmails.length > 0) {
-        return { type: 'EMAIL_SENT', payload: { success: false, error: `잘못된 이메일 주소: ${invalidEmails.join(', ')}` } };
+        return {
+          type: 'EMAIL_SENT',
+          payload: { success: false, error: `잘못된 이메일 주소: ${invalidEmails.join(', ')}` },
+        };
       }
 
-      // Sanitize CRLF from all header-bound values
-      const safeTo = to.map((addr: string) => addr.replace(/[\r\n]/g, ''));
       const safeSubject = typeof subject === 'string' ? subject.replace(/[\r\n]/g, '') : '';
 
-      const result = await sendViaGmail(safeTo, safeSubject, htmlBody);
+      const result = await sendViaGmail(safeTo, safeCc, safeBcc, safeSubject, htmlBody);
+
+      await recordHistoryBestEffort({
+        to: safeTo,
+        cc: safeCc,
+        bcc: safeBcc,
+        subject: safeSubject,
+        bodyHtml: htmlBody,
+        mode,
+        success: result.success,
+        error: result.success ? undefined : result.error,
+      });
+
       return { type: 'EMAIL_SENT', payload: result };
     }
 

@@ -232,7 +232,7 @@ describe('Gmail OAuth flow', () => {
       mockTokenSuccess('tok_send');
       mockFetch.mockResolvedValueOnce(gmailSendOk('msg_xyz'));
 
-      const result = await sendViaGmail(['test@example.com'], 'Subject', '<p>Body</p>');
+      const result = await sendViaGmail(['test@example.com'], [], [], 'Subject', '<p>Body</p>');
       expect(result.success).toBe(true);
       expect(result.messageId).toBe('msg_xyz');
     });
@@ -241,7 +241,7 @@ describe('Gmail OAuth flow', () => {
       mockTokenSuccess('tok_send');
       mockFetch.mockResolvedValueOnce(gmailSendError(403, 'Insufficient Permission'));
 
-      const result = await sendViaGmail(['a@b.com'], 'S', '<p>B</p>');
+      const result = await sendViaGmail(['a@b.com'], [], [], 'S', '<p>B</p>');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Insufficient Permission');
     });
@@ -250,7 +250,7 @@ describe('Gmail OAuth flow', () => {
       mockTokenSuccess('tok_send');
       mockFetch.mockResolvedValueOnce(gmailSendError(429, 'Rate Limit Exceeded'));
 
-      const result = await sendViaGmail(['a@b.com'], 'S', '<p>B</p>');
+      const result = await sendViaGmail(['a@b.com'], [], [], 'S', '<p>B</p>');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Rate Limit Exceeded');
     });
@@ -259,7 +259,7 @@ describe('Gmail OAuth flow', () => {
       mockTokenSuccess('tok_send');
       mockFetch.mockRejectedValueOnce(new TypeError('Network error'));
 
-      const result = await sendViaGmail(['a@b.com'], 'S', '<p>B</p>');
+      const result = await sendViaGmail(['a@b.com'], [], [], 'S', '<p>B</p>');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Network error');
     });
@@ -267,7 +267,7 @@ describe('Gmail OAuth flow', () => {
     it('returns error when auth token fails', async () => {
       mockTokenFailure('Session expired');
 
-      const result = await sendViaGmail(['a@b.com'], 'S', '<p>B</p>');
+      const result = await sendViaGmail(['a@b.com'], [], [], 'S', '<p>B</p>');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Session expired');
     });
@@ -276,7 +276,7 @@ describe('Gmail OAuth flow', () => {
       mockTokenSuccess('tok_verify');
       mockFetch.mockResolvedValueOnce(gmailSendOk());
 
-      await sendViaGmail(['x@y.com'], 'Hi', '<p>World</p>');
+      await sendViaGmail(['x@y.com'], [], [], 'Hi', '<p>World</p>');
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('gmail'),

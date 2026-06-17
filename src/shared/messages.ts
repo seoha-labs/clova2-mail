@@ -1,4 +1,4 @@
-import type { ProgressInfo } from './types';
+import type { ProgressInfo, SendMode } from './types';
 
 // Content Script → Background
 export interface ExtractAndSummarizeRequest {
@@ -7,6 +7,7 @@ export interface ExtractAndSummarizeRequest {
     readonly transcript: string;
     readonly meetingTitle: string;
     readonly attendees?: readonly string[];
+    readonly templateId?: string;
   };
 }
 
@@ -36,8 +37,11 @@ export interface SendEmailRequest {
   readonly type: 'SEND_EMAIL';
   readonly payload: {
     readonly to: readonly string[];
+    readonly cc?: readonly string[];
+    readonly bcc?: readonly string[];
     readonly subject: string;
     readonly htmlBody: string;
+    readonly mode?: SendMode;
   };
 }
 

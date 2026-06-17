@@ -179,7 +179,7 @@ describe('Edge cases', () => {
         new Response(JSON.stringify({ id: 'msg_1' }), { status: 200 }),
       );
 
-      const result = await sendViaGmail([], 'Subject', '<p>Body</p>');
+      const result = await sendViaGmail([], [], [], 'Subject', '<p>Body</p>');
       // Gmail API would reject this, but the client code doesn't validate
       expect(result.success).toBe(true);
     });
@@ -187,6 +187,8 @@ describe('Edge cases', () => {
     it('createMimeMessage handles special characters in subject', () => {
       const mime = createMimeMessage(
         ['test@example.com'],
+        [],
+        [],
         'Re: [External] 회의록 & "Notes" <Draft>',
         '<p>Body</p>',
       );
@@ -197,12 +199,12 @@ describe('Edge cases', () => {
 
     it('createMimeMessage handles very long subject', () => {
       const longSubject = '회의록 '.repeat(100);
-      const mime = createMimeMessage(['test@example.com'], longSubject, '<p>B</p>');
+      const mime = createMimeMessage(['test@example.com'], [], [], longSubject, '<p>B</p>');
       expect(mime).toContain('Subject: =?UTF-8?B?');
     });
 
     it('createMimeMessage handles empty HTML body', () => {
-      const mime = createMimeMessage(['test@example.com'], 'Subject', '');
+      const mime = createMimeMessage(['test@example.com'], [], [], 'Subject', '');
       expect(mime).toContain('multipart/alternative');
       expect(mime).toContain('text/plain');
       expect(mime).toContain('text/html');

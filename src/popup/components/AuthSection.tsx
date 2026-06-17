@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
-import { getOpenAIKey, setOpenAIKey } from '../../shared/storage';
+import { getOpenAIKey, setOpenAIKey, getModel, setModel } from '../../shared/storage';
+import { AVAILABLE_MODELS } from '../../shared/constants';
 import { useStorage } from '../hooks/useStorage';
 
 export function AuthSection() {
   const [apiKey, updateApiKey, loadingKey] = useStorage(getOpenAIKey, setOpenAIKey);
+  const [model, updateModel, loadingModel] = useStorage(getModel, setModel);
   const [showKey, setShowKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<'idle' | 'valid' | 'invalid' | 'checking'>('idle');
 
@@ -31,7 +33,7 @@ export function AuthSection() {
     [updateApiKey],
   );
 
-  if (loadingKey) return <div className="p-4 text-sm text-gray-500">로딩 중...</div>;
+  if (loadingKey || loadingModel) return <div className="p-4 text-sm text-gray-500">로딩 중...</div>;
 
   return (
     <div className="p-4 space-y-3">
@@ -73,6 +75,25 @@ export function AuthSection() {
             {keyStatus === 'invalid' && <span className="text-[10px] text-red-600">✗ 유효하지 않거나 잔액이 부족합니다</span>}
           </span>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="openai-model" className="text-xs font-medium text-gray-600">요약 모델</label>
+        <select
+          id="openai-model"
+          value={model ?? ''}
+          onChange={(e) => updateModel(e.target.value)}
+          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white"
+        >
+          {AVAILABLE_MODELS.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-[10px] text-gray-400">
+          AI 요약에 사용할 OpenAI 모델을 선택하세요. 기본값은 GPT-4o mini입니다.
+        </p>
       </div>
     </div>
   );

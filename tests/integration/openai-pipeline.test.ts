@@ -26,11 +26,10 @@ import { CHUNK_SIZE, MAX_TOKENS_SINGLE } from '../../src/shared/constants';
 
 function makeSummaryJson(overrides: Partial<SummaryJson> = {}): SummaryJson {
   return {
-    summary: 'Meeting summary',
+    summary_bullets: ['Meeting summary'],
     decisions: ['Decision A'],
     action_items: [{ task: 'Do X', assignee: 'Alice', deadline: '2026-04-01' }],
-    attendees: ['Alice', 'Bob'],
-    keywords: ['sprint'],
+    discussions: ['Discussion A'],
     ...overrides,
   };
 }
@@ -77,7 +76,7 @@ describe('OpenAI chunking pipeline (full flow)', () => {
     const expectedCalls = chunks.length + 1;
 
     for (let i = 0; i < expectedCalls; i++) {
-      mockFetch.mockResolvedValueOnce(openAiOk(makeSummaryJson({ summary: `Part ${i}` })));
+      mockFetch.mockResolvedValueOnce(openAiOk(makeSummaryJson({ summary_bullets: [`Part ${i}`] })));
     }
 
     const result = await summarizeTranscript(paragraphs, 'Big Meeting');
@@ -104,7 +103,7 @@ describe('OpenAI chunking pipeline (full flow)', () => {
 
     const progressCalls: Array<{ current: number; total: number }> = [];
 
-    await summarizeTranscript(paragraphs, 'Progress Test', (info) => {
+    await summarizeTranscript(paragraphs, 'Progress Test', [], undefined, (info) => {
       progressCalls.push({ ...info });
     });
 
@@ -160,11 +159,10 @@ describe('OpenAI chunking pipeline (full flow)', () => {
     mockFetch.mockResolvedValueOnce(
       openAiOk(
         makeSummaryJson({
-          summary: 'API 개발 진행 상황 공유',
+          summary_bullets: ['API 개발 진행 상황 공유'],
           decisions: ['v2 API 릴리스 확정'],
           action_items: [{ task: 'API 문서 작성', assignee: '김철수', deadline: '3/25' }],
-          attendees: ['김철수', '이영희'],
-          keywords: ['API', '릴리스'],
+          discussions: ['API 버전 호환성 논의'],
         }),
       ),
     );
@@ -177,6 +175,50 @@ describe('OpenAI chunking pipeline (full flow)', () => {
     expect(result.htmlBody).toContain('API 개발 진행 상황 공유');
     expect(result.htmlBody).toContain('@김철수');
     expect(result.htmlBody).toContain('v2 API 릴리스 확정');
+  });
+});
+
+import { OPENAI_MODEL } from '../../src/shared/constants';
+
+function validSummaryJson() {
+  return {
+    summary_bullets: ['요약 1'],
+    decisions: ['결정 1'],
+    action_items: [{ task: '작업', assignee: '담당', deadline: '추후 논의' }],
+    discussions: ['논의 1'],
+  };
+}
+
+function lastRequestBody() {
+  const call = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+  return JSON.parse(call[1].body as string);
+}
+
+describe('model selection (Epic C)', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    Object.keys(storageStore).forEach((k) => delete storageStore[k]);
+    storageStore['openaiApiKey'] = 'sk-test';
+  });
+
+  it('sends the default model when none is stored', async () => {
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe(OPENAI_MODEL);
+  });
+
+  it('sends the stored model when it is a known id', async () => {
+    storageStore['model'] = 'gpt-4o';
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe('gpt-4o');
+  });
+
+  it('falls back to the default when the stored model is unknown', async () => {
+    storageStore['model'] = 'gpt-9-imaginary';
+    mockFetch.mockResolvedValueOnce(openAiOk(validSummaryJson()));
+    await summarizeTranscript('Short transcript.', 'Sprint');
+    expect(lastRequestBody().model).toBe(OPENAI_MODEL);
   });
 });
 

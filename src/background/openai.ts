@@ -1,14 +1,13 @@
 import { encode } from 'gpt-tokenizer';
 import {
   OPENAI_API_URL,
-  OPENAI_MODEL,
   SYSTEM_PROMPT,
   MAX_TOKENS_SINGLE,
   MAX_TOKENS_CHUNK,
   CHUNK_SIZE,
 } from '../shared/constants';
 import type { SummaryJson, SummaryResult, EmailTemplate, ProgressInfo } from '../shared/types';
-import { getOpenAIKey, getEmailTemplate } from '../shared/storage';
+import { getOpenAIKey, getEmailTemplates, getActiveTemplateId, getModel } from '../shared/storage';
 
 export function countTokens(text: string): number {
   return encode(text).length;
@@ -49,7 +48,12 @@ function extractCustomVariables(template: EmailTemplate): string[] {
   return custom;
 }
 
-async function callOpenAI(tokenOrKey: string, transcript: string, template: EmailTemplate): Promise<SummaryJson> {
+async function callOpenAI(
+  tokenOrKey: string,
+  transcript: string,
+  template: EmailTemplate,
+  model: string,
+): Promise<SummaryJson> {
   const customVars = extractCustomVariables(template);
   const customVarsInstruction = customVars.length > 0
     ? `\n\n## 유추가 필요한 템플릿 변수\n아래 변수들의 값을 회의 원문에서 유추하여 inferred_variables에 반드시 포함하세요.\n변수 목록: ${customVars.map((v) => `{${v}}`).join(', ')}`
@@ -64,7 +68,7 @@ async function callOpenAI(tokenOrKey: string, transcript: string, template: Emai
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
@@ -91,7 +95,7 @@ async function callOpenAI(tokenOrKey: string, transcript: string, template: Emai
   return JSON.parse(content) as SummaryJson;
 }
 
-function formatSummaryToMarkdown(
+export function applySubstitution(
   summary: SummaryJson,
   template: EmailTemplate,
   title: string,
@@ -99,12 +103,14 @@ function formatSummaryToMarkdown(
 ): SummaryResult {
   const date = new Date().toISOString().split('T')[0];
 
-  const summaryBulletsText = summary.summary_bullets.map((b) => `- ${b}`).join('\n');
-  const decisionsText = summary.decisions.map((d) => `- ${d}`).join('\n');
-  const actionItemsText = summary.action_items
-    .map((item) => `- @${item.assignee}: ${item.task} (기한: ${item.deadline})`)
+  // The model is asked to return every field, but a malformed response (missing
+  // arrays) must not crash substitution. Default each section to empty.
+  const summaryBulletsText = (summary.summary_bullets ?? []).map((b) => `- ${b}`).join('\n');
+  const decisionsText = (summary.decisions ?? []).map((d) => `- ${d}`).join('\n');
+  const actionItemsText = (summary.action_items ?? [])
+    .map((item) => `- @${item.assignee ?? '미정'}: ${item.task ?? ''} (기한: ${item.deadline ?? '미정'})`)
     .join('\n');
-  const discussionsText = summary.discussions.map((d) => `- ${d}`).join('\n');
+  const discussionsText = (summary.discussions ?? []).map((d) => `- ${d}`).join('\n');
   const attendeesText = attendees.join(', ');
 
   const subject = template.subject
@@ -144,6 +150,7 @@ async function mergeSummaries(
   tokenOrKey: string,
   partials: readonly SummaryJson[],
   template: EmailTemplate,
+  model: string,
 ): Promise<SummaryJson> {
   const mergePrompt = `아래는 긴 회의록을 구간별로 정리한 결과들입니다.
 이들을 하나의 통합 정리본으로 합성해 주세요. 동일한 JSON 스키마를 사용하세요.
@@ -151,13 +158,26 @@ async function mergeSummaries(
 
 ${partials.map((p, i) => `### 구간 ${i + 1}\n${JSON.stringify(p, null, 2)}`).join('\n\n')}`;
 
-  return await callOpenAI(tokenOrKey, mergePrompt, template);
+  return await callOpenAI(tokenOrKey, mergePrompt, template, model);
+}
+
+export function resolveTemplate(
+  templates: readonly EmailTemplate[],
+  requestedId: string | undefined,
+  activeId: string,
+): EmailTemplate {
+  return (
+    templates.find((t) => t.id === requestedId) ??
+    templates.find((t) => t.id === activeId) ??
+    templates[0]
+  );
 }
 
 export async function summarizeTranscript(
   transcript: string,
   meetingTitle: string,
   attendees: readonly string[] = [],
+  templateId?: string,
   onProgress?: (progress: ProgressInfo) => void,
 ): Promise<SummaryResult> {
   const apiKey = await getOpenAIKey();
@@ -165,7 +185,10 @@ export async function summarizeTranscript(
     throw new Error('OpenAI API key가 설정되지 않았습니다. 확장 프로그램 설정에서 API key를 입력하세요.');
   }
 
-  const template = await getEmailTemplate();
+  const templates = await getEmailTemplates();
+  const activeId = await getActiveTemplateId();
+  const template = resolveTemplate(templates, templateId, activeId);
+  const model = await getModel();
   const tokenCount = countTokens(transcript);
 
   if (tokenCount > MAX_TOKENS_CHUNK) {
@@ -176,8 +199,8 @@ export async function summarizeTranscript(
   }
 
   if (tokenCount <= MAX_TOKENS_SINGLE) {
-    const summary = await callOpenAI(apiKey, transcript, template);
-    return formatSummaryToMarkdown(summary, template, meetingTitle, attendees);
+    const summary = await callOpenAI(apiKey, transcript, template, model);
+    return applySubstitution(summary, template, meetingTitle, attendees);
   }
 
   // Chunk-Summarize-Merge (병렬 처리)
@@ -186,14 +209,14 @@ export async function summarizeTranscript(
 
   const partialSummaries = await Promise.all(
     chunks.map(async (chunk) => {
-      const result = await callOpenAI(apiKey, chunk, template);
+      const result = await callOpenAI(apiKey, chunk, template, model);
       completed += 1;
       onProgress?.({ current: completed, total: chunks.length });
       return result;
     }),
   );
 
-  const merged = await mergeSummaries(apiKey, partialSummaries, template);
-  return formatSummaryToMarkdown(merged, template, meetingTitle, attendees);
+  const merged = await mergeSummaries(apiKey, partialSummaries, template, model);
+  return applySubstitution(merged, template, meetingTitle, attendees);
 }
 

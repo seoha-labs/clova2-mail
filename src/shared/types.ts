@@ -5,6 +5,8 @@ export interface Recipient {
 }
 
 export interface EmailTemplate {
+  readonly id: string;
+  readonly name: string;
   readonly subject: string;
   readonly body: string;
 }
@@ -13,7 +15,11 @@ export interface StorageSchema {
   readonly openaiApiKey: string;
   readonly recipients: readonly Recipient[];
   readonly recipientGroups: readonly RecipientGroup[];
-  readonly emailTemplate: EmailTemplate;
+  readonly emailTemplates: readonly EmailTemplate[];
+  readonly activeTemplateId: string;
+  readonly model: string;
+  readonly sendHistory: readonly SentEmail[];
+  readonly pendingResend: PendingResend | null;
 }
 
 export interface ExtractedData {
@@ -66,3 +72,26 @@ export interface RecipientGroup {
 }
 
 export type SendMode = 'summarize' | 'raw';
+
+export interface SentEmail {
+  readonly id: string;
+  readonly sentAt: number;
+  readonly to: readonly string[];
+  readonly cc: readonly string[];
+  readonly bcc: readonly string[];
+  readonly subject: string;
+  readonly bodyHtml: string;
+  readonly mode: SendMode;
+  readonly success: boolean;
+  readonly error?: string;
+  /** true when bodyHtml was truncated to fit the per-entry quota cap */
+  readonly truncated?: boolean;
+}
+
+export interface PendingResend {
+  readonly to: readonly string[];
+  readonly cc: readonly string[];
+  readonly bcc: readonly string[];
+  readonly subject: string;
+  readonly bodyHtml: string;
+}
