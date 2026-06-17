@@ -160,6 +160,32 @@ jobs:
               "$REPO" "$PREV_TAG" "$TAG" >> "$RUNNER_TEMP/release_notes.md"
           fi
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0c17529a66aca453f9227af23103ed11469b1e47 # v4.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Package extension zip
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ZIP="clova2Mail-${VERSION}.zip"
+          (cd dist && zip -qr "$GITHUB_WORKSPACE/$ZIP" .)
+          echo "zip_path=$GITHUB_WORKSPACE/$ZIP" >> "$GITHUB_OUTPUT"
+          echo "Packaged $ZIP"
+
       - name: Create git tag
         id: create_tag
         shell: bash
@@ -181,7 +207,18 @@ jobs:
           gh release create "$TAG" \
             --title "v${VERSION}" \
             --notes-file "$RUNNER_TEMP/release_notes.md" \
-            --target main
+            --target main \
+            "${{ steps.package.outputs.zip_path }}"
+
+      - name: Publish to Chrome Web Store
+        uses: mnao305/chrome-extension-upload@4008e29e13c144d0f6725462cbd49b7c291b4928 # v5.0.0
+        with:
+          file-path: ${{ steps.package.outputs.zip_path }}
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish: true
 
       - name: Rollback tag on release failure
         if: failure() && steps.create_tag.outcome == 'success'
