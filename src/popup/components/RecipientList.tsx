@@ -6,6 +6,7 @@ import { GroupCard } from './GroupCard';
 import { GroupForm } from './GroupForm';
 import { EMAIL_REGEX } from '../../shared/email';
 import { parseCsvRecipients, type CsvImportResult } from '../lib/csvImport';
+import { SAMPLE_CSV_FILENAME, sampleCsvContent } from '../lib/csvSample';
 
 export function RecipientList() {
   const [recipients, updateRecipients, loadingRecipients] = useStorage(getRecipients, setRecipients);
@@ -56,6 +57,18 @@ export function RecipientList() {
     },
     [recipients, updateRecipients],
   );
+
+  const handleDownloadSample = useCallback(() => {
+    const blob = new Blob([sampleCsvContent()], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = SAMPLE_CSV_FILENAME;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
 
   const addRecipient = useCallback(() => {
     setError('');
@@ -213,6 +226,17 @@ export function RecipientList() {
             onChange={handleCsvFile}
             className="hidden"
           />
+          <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+            첫 줄에 헤더가 필요합니다: <code className="text-teal-700">email</code>(필수),{' '}
+            <code className="text-teal-700">name</code>(선택). 컬럼 순서는 무관합니다.{' '}
+            <button
+              type="button"
+              onClick={handleDownloadSample}
+              className="text-teal-600 underline hover:text-teal-700"
+            >
+              샘플 CSV 받기
+            </button>
+          </p>
           {importMessage && <p className="text-xs text-gray-600 mt-1">{importMessage}</p>}
           {importResult && importResult.skipped.length > 0 && (
             <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto">

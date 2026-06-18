@@ -452,3 +452,101 @@
   margin: 4px 0 8px;
   padding: 0;
 }
+
+/* Summary template <select> */
+.c2m-template-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c2m-template-select label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.c2m-template-select select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 32px 7px 10px;
+  font-size: 13px;
+  color: #374151;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.c2m-template-select select:hover {
+  border-color: #0d9488;
+}
+
+.c2m-template-select select:focus,
+.c2m-template-select select:focus-visible {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+/* To / CC / BCC field stack */
+.c2m-recipient-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.c2m-recipient-fields .c2m-recipient-selector {
+  margin-bottom: 0;
+}
+
+/* CC / BCC collapsibles */
+.c2m-collapsible {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.c2m-collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f9fafb;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s, background 0.15s;
+}
+
+.c2m-collapsible-toggle:hover {
+  color: #0d9488;
+  background: #f0fdfa;
+}
+
+.c2m-collapsible-toggle:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: -2px;
+}
+
+.c2m-collapsible .c2m-recipient-selector {
+  margin-bottom: 0;
+  border-radius: 0;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}

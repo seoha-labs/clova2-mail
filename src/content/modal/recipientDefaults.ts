@@ -1,24 +1,22 @@
-import type { Recipient, RecipientGroup } from '../../shared/types';
+import type { Recipient } from '../../shared/types';
 
 export interface SelectionState {
   readonly groupIds: ReadonlySet<string>;
   readonly recipientIds: ReadonlySet<string>;
 }
 
-/** To defaults to everyone: all group ids + all recipient ids selected. */
-export function defaultToSelection(
-  groups: readonly RecipientGroup[],
-  recipients: readonly Recipient[],
-): SelectionState {
-  return {
-    groupIds: new Set(groups.map((g) => g.id)),
-    recipientIds: new Set(recipients.map((r) => r.id)),
-  };
-}
-
-/** Cc/Bcc default to nothing selected. Returns fresh, independent sets. */
+/** Every field (To/Cc/Bcc) defaults to nothing selected. Returns fresh, independent sets. */
 export function emptySelection(): SelectionState {
   return { groupIds: new Set<string>(), recipientIds: new Set<string>() };
+}
+
+/**
+ * Message shown when a field has no resolved recipients. With no saved
+ * recipients/groups at all, prompt the user to add some (the send modal can
+ * only pick from saved entries). Otherwise just note nothing is selected.
+ */
+export function fieldEmptyMessage(label: string, hasSavedData: boolean): string {
+  return hasSavedData ? `${label} 대상 없음` : '수신자를 추가해주세요';
 }
 
 /**

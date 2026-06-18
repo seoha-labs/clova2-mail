@@ -67,7 +67,9 @@ describe('Modal — raw mode unified preview', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '원문 그대로 발송' }));
-    // To defaults to everyone → the single saved recipient is selected.
+    // Nothing is selected by default — the user must pick recipients explicitly.
+    await waitFor(() => screen.getByRole('button', { name: 'A' }));
+    await user.click(screen.getByRole('button', { name: 'A' }));
     await waitFor(() => screen.getByText(/받는 사람 수신자: 1명/));
 
     await user.click(screen.getByRole('button', { name: '이메일 발송' }));
@@ -78,5 +80,21 @@ describe('Modal — raw mode unified preview', () => {
     expect(payload.cc).toEqual([]);
     expect(payload.bcc).toEqual([]);
     expect(payload.mode).toBe('raw');
+  });
+
+  it('prompts to add recipients when none are saved', async () => {
+    // store.recipients left empty
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <Modal
+        transcript={'이것은 회의 원문입니다.'}
+        meetingTitle={'Sprint Review'}
+        attendees={['Alice']}
+        onClose={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '원문 그대로 발송' }));
+    await waitFor(() => screen.getByText('수신자를 추가해주세요'));
   });
 });
