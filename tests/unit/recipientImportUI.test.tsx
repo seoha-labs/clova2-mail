@@ -57,6 +57,26 @@ describe('RecipientList — CSV import', () => {
     });
   });
 
+  it('explains required columns and downloads a sample on request', async () => {
+    const createObjectURL = vi.fn(() => 'blob:sample');
+    const revokeObjectURL = vi.fn();
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeObjectURL;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+
+    render(<RecipientList />);
+    await waitFor(() => screen.getByText(/컬럼 순서는 무관합니다/));
+
+    await userEvent.click(screen.getByRole('button', { name: '샘플 CSV 받기' }));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+
+    clickSpy.mockRestore();
+  });
+
   it('shows a clear message and does not mutate on an empty file', async () => {
     render(<RecipientList />);
     await waitFor(() => screen.getByTestId('csv-file-input'));

@@ -1,30 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import type { Recipient, RecipientGroup } from '../../src/shared/types';
 import {
-  defaultToSelection,
   emptySelection,
   recipientIdsForEmails,
+  fieldEmptyMessage,
 } from '../../src/content/modal/recipientDefaults';
 
-const recipients: readonly Recipient[] = [
-  { id: 'r1', email: 'a@x.com', name: 'Alice' },
-  { id: 'r2', email: 'b@x.com', name: 'Bob' },
-];
-const groups: readonly RecipientGroup[] = [
-  { id: 'g1', name: 'Team', recipientIds: ['r1', 'r2'] },
-];
-
-describe('defaultToSelection', () => {
-  it('selects every recipient id and every group id (To defaults to all)', () => {
-    const { groupIds, recipientIds } = defaultToSelection(groups, recipients);
-    expect([...groupIds].sort()).toEqual(['g1']);
-    expect([...recipientIds].sort()).toEqual(['r1', 'r2']);
+describe('fieldEmptyMessage', () => {
+  it('prompts to add recipients when nothing is saved', () => {
+    expect(fieldEmptyMessage('받는 사람', false)).toBe('수신자를 추가해주세요');
   });
 
-  it('returns empty sets when there are no recipients or groups', () => {
-    const { groupIds, recipientIds } = defaultToSelection([], []);
-    expect(groupIds.size).toBe(0);
-    expect(recipientIds.size).toBe(0);
+  it('says nothing selected when recipients exist but none chosen', () => {
+    expect(fieldEmptyMessage('받는 사람', true)).toBe('받는 사람 대상 없음');
+    expect(fieldEmptyMessage('참조(CC)', true)).toBe('참조(CC) 대상 없음');
   });
 });
 

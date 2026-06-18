@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Recipient, RecipientGroup } from '../../shared/types';
 import { resolveSelectedEmails } from '../../shared/recipientUtils';
 import type { SelectionState } from './recipientDefaults';
-import { defaultToSelection, emptySelection, recipientIdsForEmails } from './recipientDefaults';
+import { emptySelection, fieldEmptyMessage, recipientIdsForEmails } from './recipientDefaults';
 
 export interface RecipientSelection {
   readonly to: readonly string[];
@@ -133,7 +133,9 @@ function RecipientField({
             <span className="c2m-selected-names">{resolvedNames.join(', ')}</span>
           </>
         ) : (
-          <span className="c2m-no-selection">{label} 대상 없음</span>
+          <span className="c2m-no-selection">
+            {fieldEmptyMessage(label, recipients.length > 0 || groups.length > 0)}
+          </span>
         )}
       </div>
     </div>
@@ -157,8 +159,8 @@ export function RecipientSelector({
     () =>
       initialSelection
         ? { groupIds: new Set<string>(), recipientIds: recipientIdsForEmails(initialSelection.to, recipients) }
-        : defaultToSelection(groups, recipients),
-    [initialSelection, groups, recipients],
+        : emptySelection(),
+    [initialSelection, recipients],
   );
   const ccInit = useMemo<SelectionState>(
     () =>
